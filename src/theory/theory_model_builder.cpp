@@ -14,14 +14,19 @@
  */
 #include "theory/theory_model_builder.h"
 
+#include <memory>
+
 #include "expr/dtype.h"
 #include "expr/dtype_cons.h"
+#include "options/arith_options.h"
 #include "options/quantifiers_options.h"
 #include "options/smt_options.h"
 #include "options/strings_options.h"
 #include "options/theory_options.h"
 #include "options/uf_options.h"
 #include "smt/env.h"
+#include "theory/abstract_fun_model.h"
+#include "theory/arith/linear/lia_model_builder.h"
 #include "theory/rewriter.h"
 #include "theory/uf/function_const.h"
 #include "theory/uf/theory_uf_model.h"
@@ -1278,7 +1283,14 @@ bool TheoryEngineModelBuilder::processBuildModel(TheoryModel* m)
 void TheoryEngineModelBuilder::assignFunction(TheoryModel* m, Node f)
 {
   Assert(!logicInfo().isHigherOrder());
-  uf::UfModelTree ufmt(f);
+  const std::string argPrefix("_arg_");
+  const bool useLMB =
+      options().arith.useLMB && arith::linear::LiaModelBuilder::canHandle(f);
+  std::unique_ptr<AbstractFunModel> funmb(
+      useLMB ? static_cast<AbstractFunModel*>(
+          new arith::linear::LiaModelBuilder(d_env, f, argPrefix))
+             : new uf::UfModelTree(f));
+
   Node default_v;
   for (size_t i = 0; i < m->d_uf_terms[f].size(); i++)
   {
@@ -1298,7 +1310,7 @@ void TheoryEngineModelBuilder::assignFunction(TheoryModel* m, Node f)
     Node v = m->getRepresentative(un);
     Trace("model-builder") << "  Setting (" << simp << ") to (" << v << ")"
                            << endl;
-    ufmt.setValue(m, simp, v);
+    funmb->setValue(m, simp, v);
     default_v = v;
   }
   if (default_v.isNull())
@@ -1307,18 +1319,16 @@ void TheoryEngineModelBuilder::assignFunction(TheoryModel* m, Node f)
     TypeEnumerator te(f.getType().getRangeType());
     default_v = (*te);
   }
-  ufmt.setDefaultValue(m, default_v);
+  funmb->setDefaultValue(m, default_v);
   bool condenseFuncValues = options().theory.condenseFunctionValues;
   if (condenseFuncValues)
   {
-    ufmt.simplify();
+    funmb->simplify();
   }
-  std::stringstream ss;
-  ss << "_arg_";
-  Rewriter* r = condenseFuncValues ? d_env.getRewriter() : nullptr;
-  Node val = ufmt.getFunctionValue(ss.str(), r);
+  Rewriter* const r = condenseFuncValues ? d_env.getRewriter() : nullptr;
+  Node val = funmb->getFunctionValue(argPrefix, r);
   m->assignFunctionDefinition(f, val);
-  // ufmt.debugPrint( std::cout, m );
+  // funmb->debugPrint( std::cout, m );
 }
 
 void TheoryEngineModelBuilder::assignHoFunction(TheoryModel* m, Node f)

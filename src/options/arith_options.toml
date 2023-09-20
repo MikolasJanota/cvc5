@@ -185,12 +185,28 @@ name   = "Arithmetic Theory"
   help       = "turns on degenerate pivot penalties"
 
 [[option]]
+  name       = "lmbSmarterPred"
+  category   = "expert"
+  long       = "lmb-smarter-pred"
+  type       = "bool"
+  default    = "false"
+  help       = "turns on smarter predicate construction in linear model builder"
+
+[[option]]
   name       = "useFC"
   category   = "expert"
   long       = "use-fcsimplex"
   type       = "bool"
   default    = "false"
   help       = "use focusing and converging simplex (FMCAD 2013 submission)"
+
+[[option]]
+  name       = "useLMB"
+  category   = "expert"
+  long       = "use-lmb"
+  type       = "bool"
+  default    = "false"
+  help       = "use linear model builder, useful with mbqi for satisfiable problems"
 
 [[option]]
   name       = "useSOI"

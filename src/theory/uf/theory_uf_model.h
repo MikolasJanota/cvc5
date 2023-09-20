@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "expr/node.h"
+#include "theory/abstract_fun_model.h"
 
 namespace cvc5::internal {
 namespace theory {
@@ -59,7 +60,7 @@ public:
   void debugPrint( std::ostream& out, TheoryModel* m, std::vector< int >& indexOrder, int ind = 0, int arg = 0 );
 };
 
-class UfModelTree
+class UfModelTree : public AbstractFunModel
 {
 private:
   //the op this model is for
@@ -71,6 +72,7 @@ private:
 public:
   //constructors
   UfModelTree(){}
+  virtual ~UfModelTree(){}
   UfModelTree( Node op ) : d_op( op ){
     TypeNode tn = d_op.getType();
     for( int i=0; i<(int)(tn.getNumChildren()-1); i++ ){
@@ -81,17 +83,17 @@ public:
     d_index_order.insert( d_index_order.end(), indexOrder.begin(), indexOrder.end() );
   }
   /** clear/reset the function */
-  void clear() { d_tree.clear(); }
+  virtual void clear() override { d_tree.clear(); }
   /** setValue function
     *
     * For each argument of n with ModelBasisAttribute() set to true will be considered default arguments if ground=false
     *
     */
-  void setValue( TheoryModel* m, Node n, Node v, bool ground = true ){
+ virtual void setValue( TheoryModel* m, Node n, Node v, bool ground = true ) override {
     d_tree.setValue( m, n, v, d_index_order, ground, 0 );
   }
   /** setDefaultValue function */
-  void setDefaultValue( TheoryModel* m, Node v ){
+  void setDefaultValue( TheoryModel* m, Node v ) override {
     d_tree.setValue( m, Node::null(), v, d_index_order, false, 0 );
   }
   /** getFunctionValue
@@ -100,19 +102,19 @@ public:
    */
   Node getFunctionValue(const std::vector<Node>& args, Rewriter* r);
   /** getFunctionValue for args with set prefix */
-  Node getFunctionValue(const std::string& argPrefix, Rewriter* r);
+  Node getFunctionValue(const std::string& argPrefix, Rewriter* r) override;
   /** update
     *   This will update all values in the tree to be representatives in m.
     */
   void update( TheoryModel* m ){ d_tree.update( m ); }
   /** simplify the tree */
-  void simplify() { d_tree.simplify( d_op, Node::null(), 0 ); }
+  void simplify() override { d_tree.simplify( d_op, Node::null(), 0 ); }
   /** is this tree total? */
   bool isTotal() { return d_tree.isTotal( d_op, 0 ); }
   /** is this tree empty? */
   bool isEmpty() { return d_tree.isEmpty(); }
 public:
-  void debugPrint( std::ostream& out, TheoryModel* m, int ind = 0 ){
+  void debugPrint( std::ostream& out, TheoryModel* m, int ind = 0 )override{
     d_tree.debugPrint( out, m, d_index_order, ind );
   }
 };

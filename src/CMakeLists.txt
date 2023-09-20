@@ -352,6 +352,7 @@ libcvc5_add_sources(
   smt/unsat_core_manager.h
   smt/witness_form.cpp
   smt/witness_form.h
+  theory/abstract_fun_model.h
   theory/arith/arith_evaluator.cpp
   theory/arith/arith_evaluator.h
   theory/arith/arith_ite_utils.cpp
@@ -406,6 +407,8 @@ libcvc5_add_sources(
   theory/arith/linear/fc_simplex.h
   theory/arith/linear/infer_bounds.cpp
   theory/arith/linear/infer_bounds.h
+  theory/arith/linear/lia_model_builder.cpp
+  theory/arith/linear/lia_model_builder.h
   theory/arith/linear/linear_equality.cpp
   theory/arith/linear/linear_equality.h
   theory/arith/linear/matrix.cpp
