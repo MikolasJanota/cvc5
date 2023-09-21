@@ -189,8 +189,8 @@ name   = "Arithmetic Theory"
   category   = "expert"
   long       = "lmb-smarter-pred"
   type       = "bool"
-  default    = "false"
-  help       = "turns on smarter predicate construction in linear model builder"
+  default    = "true"
+  help       = "use smarter predicate construction in linear model builder"
 
 [[option]]
   name       = "useFC"
