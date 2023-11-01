@@ -19,6 +19,7 @@
 #define CVC5__THEORY_ENGINE_H
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "base/check.h"
@@ -32,6 +33,7 @@
 #include "theory/inference_id.h"
 #include "theory/interrupted.h"
 #include "theory/output_channel.h"
+#include "theory/origin_tracker.h"
 #include "theory/partition_generator.h"
 #include "theory/rewriter.h"
 #include "theory/sort_inference.h"
@@ -56,7 +58,8 @@ class ProofChecker;
  * A pair of a theory and a node. This is used to mark the flow of
  * propagations between theories.
  */
-struct NodeTheoryPair {
+struct NodeTheoryPair
+{
   Node d_node;
   theory::TheoryId d_theory;
   size_t d_timestamp;
@@ -66,20 +69,22 @@ struct NodeTheoryPair {
   }
   NodeTheoryPair() : d_theory(theory::THEORY_LAST), d_timestamp() {}
   // Comparison doesn't take into account the timestamp
-  bool operator == (const NodeTheoryPair& pair) const {
+  bool operator==(const NodeTheoryPair& pair) const
+  {
     return d_node == pair.d_node && d_theory == pair.d_theory;
   }
-};/* struct NodeTheoryPair */
+}; /* struct NodeTheoryPair */
 
-struct NodeTheoryPairHashFunction {
+struct NodeTheoryPairHashFunction
+{
   std::hash<Node> hashFunction;
   // Hash doesn't take into account the timestamp
-  size_t operator()(const NodeTheoryPair& pair) const {
+  size_t operator()(const NodeTheoryPair& pair) const
+  {
     uint64_t hash = fnv1a::fnv1a_64(std::hash<Node>()(pair.d_node));
     return static_cast<size_t>(fnv1a::fnv1a_64(pair.d_theory, hash));
   }
-};/* struct NodeTheoryPairHashFunction */
-
+}; /* struct NodeTheoryPairHashFunction */
 
 /* Forward declarations */
 namespace theory {
@@ -391,6 +396,8 @@ class TheoryEngine : protected EnvObj
    */
   std::unordered_set<TNode> getRelevantAssertions(bool& success);
 
+  std::optional<theory::OriginTracker::Origin> getOrigin(Node n) const;
+
   /**
    * Get difficulty map, which populates dmap, mapping preprocessed assertions
    * to a value that estimates their difficulty for solving the current problem.
@@ -554,6 +561,9 @@ class TheoryEngine : protected EnvObj
   std::unique_ptr<theory::DecisionManager> d_decManager;
   /** The relevance manager */
   std::unique_ptr<theory::RelevanceManager> d_relManager;
+
+  /** The origin tracker */
+  std::unique_ptr<theory::OriginTracker> d_origTracker;
 
   /**
    * Output channels for individual theories.

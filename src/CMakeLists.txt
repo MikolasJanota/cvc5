@@ -1048,6 +1048,8 @@ libcvc5_add_sources(
   theory/quantifiers/theory_quantifiers.h
   theory/quantifiers/theory_quantifiers_type_rules.cpp
   theory/quantifiers/theory_quantifiers_type_rules.h
+  theory/origin_tracker.cpp
+  theory/origin_tracker.h
   theory/quantifiers_engine.cpp
   theory/quantifiers_engine.h
   theory/relevance_manager.cpp

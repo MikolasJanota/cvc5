@@ -33,6 +33,14 @@ name   = "Theory Layer"
   help       = "condense values for functions in models rather than explicitly representing them"
 
 [[option]]
+  name       = "originTracker"
+  category   = "expert"
+  long       = "origin-tracker"
+  type       = "bool"
+  default    = "false"
+  help       = "keep track of where new terms are coming from"
+
+[[option]]
   name       = "relevanceFilter"
   category   = "expert"
   long       = "relevance-filter"
