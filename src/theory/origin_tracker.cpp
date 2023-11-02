@@ -47,7 +47,9 @@ std::ostream& operator<<(std::ostream& out, const OriginTracker::Origin& o)
 }
 
 OriginTracker::OriginTracker(Env& env, TheoryEngine* engine)
-    : TheoryEngineModule(env, engine, "OriginTracker")
+    : TheoryEngineModule(env, engine, "OriginTracker"),
+      d_newTermIdStats(statisticsRegistry().registerHistogram<InferenceId>(
+          "inferencesOrigins"))
 {
 }
 
@@ -77,6 +79,10 @@ void OriginTracker::notifyPreprocessedAssertions(
 
 void OriginTracker::assignTerm(TNode n, const Origin& s)
 {
+  if (s.d_type != OriginType::InputAssert)
+  {
+    d_newTermIdStats << s.d_infId;
+  }
   d_origins[n] = s;
   TRACELN1("assgn: " << n << " <-- " << s);
 }

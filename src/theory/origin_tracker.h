@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "expr/node.h"
+#include "util/statistics_stats.h"
 #include "expr/term_context.h"
 #include "theory/theory_engine_module.h"
 
@@ -89,6 +90,8 @@ class OriginTracker : public TheoryEngineModule
  private:
   std::unordered_set<Node> d_seen;
   std::unordered_map<Node, Origin> d_origins;
+  HistogramStat<InferenceId> d_newTermIdStats;
+
   void assignSubterms(TNode n, const Origin& s);
   void assignSubterms(const std::vector<Node>& ns, const Origin& s)
   {
