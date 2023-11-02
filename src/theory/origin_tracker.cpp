@@ -46,14 +46,14 @@ void OriginTracker::notifyLemma(TNode n,
                                 const std::vector<Node>& sks)
 {
   TRACELN("notifyLemma: " << n);
-  assign(n, {n, OriginType::Lemma});
+  assignSubterms(n, {n, OriginType::Lemma});
   for (const Node& s : sks)
   {
-    assign(s, {n, OriginType::Sk});
+    assignSubterms(s, {n, OriginType::Sk});
   }
   for (const Node& s : skAsserts)
   {
-    assign(s, {n, OriginType::SkAssert});
+    assignSubterms(s, {n, OriginType::SkAssert});
   }
 }
 
@@ -62,11 +62,17 @@ void OriginTracker::notifyPreprocessedAssertions(
 {
   for (const Node& n : assertions)
   {
-    assign(n, {n, OriginType::InputAssert});
+    assignSubterms(n, {n, OriginType::InputAssert});
   }
 }
 
-void OriginTracker::assign(TNode n, const Origin& s)
+void OriginTracker::assignTerm(TNode n, const Origin& s)
+{
+  d_origins[n] = s;
+  TRACELN1(toStr(s.d_type) << ": " << n << " <-- " << s.d_lemma);
+}
+
+void OriginTracker::assignSubterms(TNode n, const Origin& s)
 {
   std::vector<TNode> visit;
   TNode cur;
@@ -75,20 +81,20 @@ void OriginTracker::assign(TNode n, const Origin& s)
   {
     cur = visit.back();
     visit.pop_back();
-    if (cur.isClosure())
-    {
-      continue;
-    }
     const auto [_, inserted] = d_seen.insert(cur);
     if (!inserted)
     {
       continue;
     }
+    if (cur.isClosure())
+    {
+      assignTerm(cur, s);
+      continue;
+    }
     visit.insert(visit.end(), cur.begin(), cur.end());
     if (!cur.getType().isBoolean())
     {
-      d_origins[cur] = s;
-      TRACELN1(toStr(s.d_type) << ": " << cur << " <-- " << n);
+      assignTerm(cur, s);
     }
   } while (!visit.empty());
 }

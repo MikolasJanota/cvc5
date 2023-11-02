@@ -74,7 +74,8 @@ class OriginTracker : public TheoryEngineModule
  private:
   std::unordered_set<Node> d_seen;
   std::unordered_map<Node, Origin> d_origins;
-  void assign(TNode n, const Origin& s);
+  void assignSubterms(TNode n, const Origin& s);
+  void assignTerm(TNode n, const Origin& s);
 };
 
 }  // namespace theory
