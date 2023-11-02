@@ -31,6 +31,20 @@ static const char* toStr(cvc5::internal::theory::OriginTracker::OriginType ot)
 
 namespace cvc5::internal {
 namespace theory {
+std::ostream& operator<<(std::ostream& out, OriginTracker::OriginType ot)
+{
+  return out << toStr(ot);
+}
+
+std::ostream& operator<<(std::ostream& out, const OriginTracker::Origin& o)
+{
+  if (o.d_type == OriginTracker::OriginType::InputAssert)
+  {
+    return out << o.d_type << ":" << o.d_lemma;
+  }
+  return out << o.d_type << ":" << o.d_lemma << "," << o.d_infId << ","
+             << o.d_lemProp;
+}
 
 OriginTracker::OriginTracker(Env& env, TheoryEngine* engine)
     : TheoryEngineModule(env, engine, "OriginTracker")
@@ -41,35 +55,30 @@ void OriginTracker::check(Theory::Effort effort) {}
 void OriginTracker::postCheck(Theory::Effort effort) {}
 
 void OriginTracker::notifyLemma(TNode n,
-                                theory::LemmaProperty p,
+                                InferenceId id,
+                                LemmaProperty p,
                                 const std::vector<Node>& skAsserts,
                                 const std::vector<Node>& sks)
 {
   TRACELN("notifyLemma: " << n);
-  assignSubterms(n, {n, OriginType::Lemma});
-  for (const Node& s : sks)
-  {
-    assignSubterms(s, {n, OriginType::Sk});
-  }
-  for (const Node& s : skAsserts)
-  {
-    assignSubterms(s, {n, OriginType::SkAssert});
-  }
+  assignSubterms(n, Origin::mkLem(OriginType::Lemma, n, id, p));
+  assignSubterms(sks, Origin::mkLem(OriginType::Sk, n, id, p));
+  assignSubterms(skAsserts, Origin::mkLem(OriginType::SkAssert, n, id, p));
 }
 
 void OriginTracker::notifyPreprocessedAssertions(
     const std::vector<Node>& assertions)
 {
-  for (const Node& n : assertions)
+  for (const auto& n : assertions)
   {
-    assignSubterms(n, {n, OriginType::InputAssert});
+    assignSubterms(n, Origin::mkIn(n));
   }
 }
 
 void OriginTracker::assignTerm(TNode n, const Origin& s)
 {
   d_origins[n] = s;
-  TRACELN1(toStr(s.d_type) << ": " << n << " <-- " << s.d_lemma);
+  TRACELN1("assgn: " << n << " <-- " << s);
 }
 
 void OriginTracker::assignSubterms(TNode n, const Origin& s)

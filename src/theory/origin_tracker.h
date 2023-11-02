@@ -32,6 +32,20 @@ class OriginTracker : public TheoryEngineModule
   {
     Node d_lemma;
     OriginType d_type;
+    InferenceId d_infId;
+    LemmaProperty d_lemProp;
+    static Origin mkIn(TNode n)
+    {
+      return {
+          n, OriginType::InputAssert, InferenceId::NONE, LemmaProperty::NONE};
+    }
+    static Origin mkLem(OriginType ot,
+                        TNode n,
+                        InferenceId infId,
+                        LemmaProperty lemProp)
+    {
+      return {n, ot, infId, lemProp};
+    }
   };
 
  public:
@@ -51,7 +65,8 @@ class OriginTracker : public TheoryEngineModule
 
   /** Notify lemma, for difficulty measurements */
   void notifyLemma(TNode n,
-                   theory::LemmaProperty p,
+                   InferenceId id,
+                   LemmaProperty p,
                    const std::vector<Node>& skAsserts,
                    const std::vector<Node>& sks) override;
 
@@ -75,6 +90,13 @@ class OriginTracker : public TheoryEngineModule
   std::unordered_set<Node> d_seen;
   std::unordered_map<Node, Origin> d_origins;
   void assignSubterms(TNode n, const Origin& s);
+  void assignSubterms(const std::vector<Node>& ns, const Origin& s)
+  {
+    for (const auto& n : ns)
+    {
+      assignSubterms(n, s);
+    }
+  }
   void assignTerm(TNode n, const Origin& s);
 };
 
