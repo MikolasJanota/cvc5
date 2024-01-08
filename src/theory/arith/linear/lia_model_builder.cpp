@@ -112,13 +112,13 @@ static void dbg_trace_points(
 
 inline bool getBool(TNode n)
 {
-  AlwaysAssert(n.getKind() == CONST_BOOLEAN);
+  AlwaysAssert(n.getKind() == Kind::CONST_BOOLEAN);
   return n.getConst<bool>();
 }
 
 inline Integer getInt(TNode n)
 {
-  AlwaysAssert(n.getKind() == CONST_INTEGER);
+  AlwaysAssert(n.getKind() == Kind::CONST_INTEGER);
   const auto val = n.getConst<Rational>();
   Assert(val.isIntegral());
   return val.getNumerator();
@@ -167,12 +167,13 @@ void LiaModelBuilder::setValue(TheoryModel*, Node n, Node val, bool ground)
     switch (arg.getKind())
     {
       /* case CONST_RATIONAL: */
-      case CONST_INTEGER: args.push_back(getInt(arg)); break;
+      case Kind::CONST_INTEGER: args.push_back(getInt(arg)); break;
       default:
         AlwaysAssert(false) << " expecting integers in the function points";
     }
   }
-  AlwaysAssert(val.getKind() == CONST_INTEGER || val.getKind() == CONST_BOOLEAN)
+  AlwaysAssert(val.getKind() == Kind::CONST_INTEGER
+               || val.getKind() == Kind::CONST_BOOLEAN)
       << "expecting integers/bools in the function values";
 
   d_points.push_back({args, val});
@@ -196,31 +197,34 @@ struct ExpressionHelper
     {
       return b;
     }
-    return d_nm->mkNode(MULT, d_nm->mkConstInt(a), b);
+    return d_nm->mkNode(Kind::MULT, d_nm->mkConstInt(a), b);
   }
 
   inline bool isZero(TNode n)
   {
-    return n.getKind() == CONST_INTEGER && n.getConst<Rational>().isZero();
+    return n.getKind() == Kind::CONST_INTEGER
+           && n.getConst<Rational>().isZero();
   }
 
+  /** Construct the sum of given terms. */
   inline Node sum(const std::vector<Node>& terms)
   {
-    return terms.empty()
-               ? mkZero()
-               : (terms.size() == 1 ? terms[0] : d_nm->mkNode(ADD, terms));
+    return terms.empty() ? mkZero()
+                         : (terms.size() == 1 ? terms[0]
+                                              : d_nm->mkNode(Kind::ADD, terms));
   }
 
+  /** Calculate dicjuntion of terms. */
   inline Node disjoin(const std::vector<Node>& terms)
   {
     return terms.empty()
                ? d_nm->mkConst(false)
-               : (terms.size() == 1 ? terms[0] : d_nm->mkNode(OR, terms));
+               : (terms.size() == 1 ? terms[0] : d_nm->mkNode(Kind::OR, terms));
   }
 
   inline Node addi(Integer a, Node b)
   {
-    return a.isZero() ? b : d_nm->mkNode(ADD, d_nm->mkConstInt(a), b);
+    return a.isZero() ? b : d_nm->mkNode(Kind::ADD, d_nm->mkConstInt(a), b);
   }
 
   inline Node muli(Integer a, TNode b)
@@ -233,12 +237,12 @@ struct ExpressionHelper
     {
       return b;
     }
-    return d_nm->mkNode(MULT, d_nm->mkConstInt(a), b);
+    return d_nm->mkNode(Kind::MULT, d_nm->mkConstInt(a), b);
   }
 
   inline Node mul(TNode a, TNode b)
   {
-    if (a.getKind() == CONST_INTEGER)
+    if (a.getKind() == Kind::CONST_INTEGER)
     {
       const auto& r = a.getConst<Rational>();
       if (r.isZero())
@@ -250,21 +254,24 @@ struct ExpressionHelper
         return b;
       }
     }
-    return d_nm->mkNode(MULT, a, b);
+    return d_nm->mkNode(Kind::MULT, a, b);
   }
 
-  Node makeSegment(const std::vector<Node>& solution,
-                   const std::vector<Node>& vars)
+  /** Make polynomial from coeffs and vars, where the last coeff is the
+   * intercept. */
+  Node makePoly(const std::vector<Node>& coeffs, const std::vector<Node>& vars)
   {
     const auto arity = vars.size();
-    Assert(arity + 1 == solution.size());
+    Assert(arity + 1 == coeffs.size());
     std::vector<Node> terms;
     for (size_t i = 0; i < arity; i++)
     {
-      const auto t = mul(solution[i], vars[i]);
-      if (!isZero(t)) terms.push_back(mul(solution[i], vars[i]));
+      if (!isZero(coeffs[i]))
+      {
+        terms.push_back(mul(coeffs[i], vars[i]));
+      }
     }
-    const Node& intercept = solution.back();
+    const Node& intercept = coeffs.back();
     if (!isZero(intercept))
     {
       terms.push_back(intercept);
@@ -275,10 +282,12 @@ struct ExpressionHelper
   Node makePredSegment(const std::vector<Node>& solution,
                        const std::vector<Node>& vars)
   {
-    const Node fun = makeSegment(solution, vars);
-    return d_nm->mkNode(GEQ, fun, mkZero());
+    const Node fun = makePoly(solution, vars);
+    return d_nm->mkNode(Kind::GEQ, fun, mkZero());
   }
 
+  /** Create an inequality so that coefficients give a hyperplane fitting a
+   * given point. */
   Node pt2ineq(const LiaModelBuilder::FunPoint& p,
                const std::vector<Node>& coefficients)
   {
@@ -293,8 +302,8 @@ struct ExpressionHelper
       }
     }
     terms.push_back(coefficients[arity]);
-    const Node rv =
-        d_nm->mkNode(getBool(p.val) ? GEQ : LT, sum(terms), mkZero());
+    const Node rv = d_nm->mkNode(
+        getBool(p.val) ? Kind::GEQ : Kind::LT, sum(terms), mkZero());
     TRACELN(p << " -> " << rv);
     return rv;
   }
@@ -313,28 +322,23 @@ struct ExpressionHelper
       }
     }
     terms.push_back(coefficients[arity]);
-    const Node rv = d_nm->mkNode(EQUAL, sum(terms), p.val);
+    const Node rv = d_nm->mkNode(Kind::EQUAL, sum(terms), p.val);
     TRACELN(p << " -> " << rv);
     return rv;
   }
 
   std::vector<Node> mkCoefficients(const std::vector<Node>& vars)
   {
-    std::vector<Node> coefficients;
+    std::vector<Node> coeffs;
     const TypeNode intt = d_nm->integerType();
     SkolemManager* const sm = d_nm->getSkolemManager();
-
-    coefficients.reserve(vars.size() + 1);
+    coeffs.reserve(vars.size() + 1);
     for (size_t i = 0; i < vars.size(); i++)
     {
-      std::stringstream ss;
-      ss << "k" << i;
-      coefficients.push_back(sm->mkDummySkolem(
-          ss.str(), intt, "coefficient in linear model builder"));
+      coeffs.push_back(sm->mkDummySkolem("k", intt, "coefficient in lmb"));
     }
-    coefficients.push_back(
-        sm->mkDummySkolem("c", intt, "intercept in linear model builder"));
-    return coefficients;
+    coeffs.push_back(sm->mkDummySkolem("c", intt, "intercept in lmb"));
+    return coeffs;
   }
 };
 
@@ -533,17 +537,17 @@ Node LiaModelBuilder::buildPredSmarterRec(const std::vector<size_t>& indices)
   }
 
   // TODO: might be possible to reuse indices vector in the input
+  // split points into positive and negative
   std::vector<size_t> posIndices;
   std::vector<size_t> negIndices;
   for (size_t i : indices)
   {
-    auto& partition =
-        isPos(d_points[i].args, solution) ? posIndices : negIndices;
-    partition.push_back(i);
+    auto& block = isPos(d_points[i].args, solution) ? posIndices : negIndices;
+    block.push_back(i);
   }
   const Node posFun = buildPredSmarterRec(posIndices);
   const Node negFun = buildPredSmarterRec(negIndices);
-  const Node rv = nm->mkNode(ITE, guard, posFun, negFun);
+  const Node rv = nm->mkNode(Kind::ITE, guard, posFun, negFun);
   TRACELN("sub-solution: " << rv);
   return rv;
 }
@@ -588,7 +592,7 @@ Node LiaModelBuilder::buildPredGreedyRec(size_t ix)
   const Node firstSegment = solution.empty()
                                 ? d_points[ix].val
                                 : eh.makePredSegment(solution, d_vars);
-  if (ix >= d_points.size()) // all on singe hyperplane
+  if (ix >= d_points.size())  // all on single hyperplane
   {
     return firstSegment;
   }
@@ -607,13 +611,15 @@ Node LiaModelBuilder::buildPredGreedyRec(size_t ix)
   for (size_t i = 0; i < split_pos; i++)
   {
     const auto ci = nm->mkConstInt(splitCoor[i]);
-    conj.push_back(nm->mkNode(LT, d_vars[i], ci));
-    disjuncts.push_back(conj.size() == 1 ? conj[0] : nm->mkNode(AND, conj));
+    conj.push_back(nm->mkNode(Kind::LT, d_vars[i], ci));
+    disjuncts.push_back(conj.size() == 1 ? conj[0]
+                                         : nm->mkNode(Kind::AND, conj));
     conj.pop_back();
-    if (i + 1 < split_pos) conj.push_back(nm->mkNode(EQUAL, d_vars[i], ci));
+    if (i + 1 < split_pos)
+      conj.push_back(nm->mkNode(Kind::EQUAL, d_vars[i], ci));
   }
   return nm->mkNode(
-      ITE, eh.disjoin(disjuncts), firstSegment, buildPredGreedyRec(ix));
+      Kind::ITE, eh.disjoin(disjuncts), firstSegment, buildPredGreedyRec(ix));
 }
 
 Node LiaModelBuilder::buildFunGreedyRec(size_t ix)
@@ -632,13 +638,14 @@ Node LiaModelBuilder::buildFunGreedyRec(size_t ix)
   liaChecker->setOption("incremental", "true");
   ExpressionHelper eh(nm);
   std::vector<Node> coefficients(eh.mkCoefficients(d_vars));
+  // default solution is constant
   std::vector<Node> solution(coefficients.size(), nm->mkConstInt(Integer(0)));
-  solution.back() = cur.val;  // current solution is constant
+  solution.back() = cur.val;
   TRACELN("cur: " << cur);
   TRACELN("coefficients: " << coefficients);
   TRACELN("current sol: " << solution);
   liaChecker->assertFormula(eh.pt2eq(cur, coefficients));
-  // greedily place points on a single hyperplane
+  // greedily place points on a single hyperplane until impossible
   for (; ix < d_points.size(); ix++)
   {
     liaChecker->assertFormula(eh.pt2eq(d_points[ix], coefficients));
@@ -653,7 +660,7 @@ Node LiaModelBuilder::buildFunGreedyRec(size_t ix)
     }
   }
 
-  const Node firstSegment = eh.makeSegment(solution, d_vars);
+  const Node firstSegment = eh.makePoly(solution, d_vars);
   if (ix >= d_points.size())
   {
     return firstSegment;
@@ -676,16 +683,17 @@ Node LiaModelBuilder::buildFunGreedyRec(size_t ix)
   for (size_t i = 0; i < split_pos; i++)
   {
     const auto ci = nm->mkConstInt(splitCoor[i]);
-    conj.push_back(nm->mkNode(LT, d_vars[i], ci));
-    disjuncts.push_back(conj.size() == 1 ? conj[0] : nm->mkNode(AND, conj));
+    conj.push_back(nm->mkNode(Kind::LT, d_vars[i], ci));
+    disjuncts.push_back(conj.size() == 1 ? conj[0]
+                                         : nm->mkNode(Kind::AND, conj));
     conj.pop_back();
     if (i + 1 < split_pos)
     {
-      conj.push_back(nm->mkNode(EQUAL, d_vars[i], ci));
+      conj.push_back(nm->mkNode(Kind::EQUAL, d_vars[i], ci));
     }
   }
   return nm->mkNode(
-      ITE, eh.disjoin(disjuncts), firstSegment, buildFunGreedyRec(ix));
+      Kind::ITE, eh.disjoin(disjuncts), firstSegment, buildFunGreedyRec(ix));
 }
 
 Node LiaModelBuilder::buildFunGreedyUnary(size_t ix)
@@ -739,12 +747,12 @@ Node LiaModelBuilder::buildFunGreedyUnary(size_t ix)
   else
   {
     const auto split = nm->mkConstInt(d_points[ix].args[0]);
-    const auto lt = nm->mkNode(LT, d_vars[0], split);
-    return nm->mkNode(ITE, lt, firstSegment, buildFunGreedyUnary(ix));
+    const auto lt = nm->mkNode(Kind::LT, d_vars[0], split);
+    return nm->mkNode(Kind::ITE, lt, firstSegment, buildFunGreedyUnary(ix));
   }
 }
 
-/* Reduce repeated points. */
+/** Reduce repeated points */
 void reduce(std::vector<LiaModelBuilder::FunPoint>& points)
 {
   size_t j = 1;
@@ -800,7 +808,7 @@ Node LiaModelBuilder::getFunctionValue(const std::string& argPrefix,
       {
         eqs[i] = d_vars[i].eqNode(nm->mkConstInt(args[i]));
       }
-      d_body = nm->mkNode(ITE, nm->mkAnd(eqs), v, d_body);
+      d_body = nm->mkNode(Kind::ITE, nm->mkAnd(eqs), v, d_body);
     }
   }
 
@@ -809,8 +817,8 @@ Node LiaModelBuilder::getFunctionValue(const std::string& argPrefix,
     d_body = r->rewrite(d_body);
   }
 
-  const Node boundVarList = nm->mkNode(BOUND_VAR_LIST, d_vars);
-  return nm->mkNode(LAMBDA, boundVarList, d_body);
+  const Node boundVarList = nm->mkNode(Kind::BOUND_VAR_LIST, d_vars);
+  return nm->mkNode(Kind::LAMBDA, boundVarList, d_body);
 }
 
 bool LiaModelBuilder::canHandle(const Node op)
