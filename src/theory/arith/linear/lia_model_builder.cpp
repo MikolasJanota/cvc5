@@ -116,12 +116,16 @@ inline bool getBool(TNode n)
   return n.getConst<bool>();
 }
 
-inline Integer getInt(TNode n)
+inline bool isNumeral(TNode n)
 {
-  AlwaysAssert(n.getKind() == Kind::CONST_INTEGER);
-  const auto val = n.getConst<Rational>();
-  Assert(val.isIntegral());
-  return val.getNumerator();
+  return n.getKind() == Kind::CONST_INTEGER
+         || n.getKind() == Kind::CONST_RATIONAL;
+}
+
+inline Rational getNumeral(TNode n)
+{
+  AlwaysAssert(isNumeral(n));
+  return n.getConst<Rational>();
 }
 
 /** Lexicographic comparator of points. **/
@@ -162,19 +166,21 @@ void LiaModelBuilder::setValue(TheoryModel*, Node n, Node val, bool ground)
 {
   Assert(ground) << "non-ground not supported";
   FunArgs args;
+  args.reserve(n.getNumChildren());
   for (const Node& arg : n)
   {
     switch (arg.getKind())
     {
-      /* case CONST_RATIONAL: */
-      case Kind::CONST_INTEGER: args.push_back(getInt(arg)); break;
+      case Kind::CONST_RATIONAL:
+      case Kind::CONST_INTEGER: args.push_back(getNumeral(arg)); break;
       default:
         AlwaysAssert(false) << " expecting integers in the function points";
     }
   }
   AlwaysAssert(val.getKind() == Kind::CONST_INTEGER
+               || val.getKind() == Kind::CONST_RATIONAL
                || val.getKind() == Kind::CONST_BOOLEAN)
-      << "expecting integers/bools in the function values";
+      << "expecting reals/integers/bools in the function values";
 
   d_points.push_back({args, val});
 }
@@ -182,12 +188,21 @@ void LiaModelBuilder::setValue(TheoryModel*, Node n, Node val, bool ground)
 /* == BUILDING MODEL == */
 struct ExpressionHelper
 {
-  explicit ExpressionHelper(NodeManager* const nm) : d_nm(nm) {}
+  explicit ExpressionHelper(NodeManager* const nm, bool integers)
+      : d_nm(nm),
+        d_int(integers),
+        d_tn(d_int ? nm->integerType() : nm->realType())
+  {
+  }
+
   NodeManager* const d_nm;
+  const bool d_int;
+  const TypeNode d_tn;
 
-  inline Node mkZero() { return d_nm->mkConstInt(Rational(0)); }
+  inline Node mkNum(Rational val) { return d_nm->mkConstRealOrInt(d_tn, val); }
+  inline Node mkZero() { return mkNum(Rational(0)); }
 
-  Node mul(Integer a, TNode b)
+  Node mul(Rational a, TNode b)
   {
     if (a.isZero())
     {
@@ -197,13 +212,12 @@ struct ExpressionHelper
     {
       return b;
     }
-    return d_nm->mkNode(Kind::MULT, d_nm->mkConstInt(a), b);
+    return d_nm->mkNode(Kind::MULT, mkNum(a), b);
   }
 
   inline bool isZero(TNode n)
   {
-    return n.getKind() == Kind::CONST_INTEGER
-           && n.getConst<Rational>().isZero();
+    return isNumeral(n) && n.getConst<Rational>().isZero();
   }
 
   /** Construct the sum of given terms. */
@@ -214,47 +228,10 @@ struct ExpressionHelper
                                               : d_nm->mkNode(Kind::ADD, terms));
   }
 
-  /** Calculate dicjuntion of terms. */
-  inline Node disjoin(const std::vector<Node>& terms)
-  {
-    return terms.empty()
-               ? d_nm->mkConst(false)
-               : (terms.size() == 1 ? terms[0] : d_nm->mkNode(Kind::OR, terms));
-  }
-
-  inline Node addi(Integer a, Node b)
-  {
-    return a.isZero() ? b : d_nm->mkNode(Kind::ADD, d_nm->mkConstInt(a), b);
-  }
-
-  inline Node muli(Integer a, TNode b)
-  {
-    if (a.isZero())
-    {
-      return d_nm->mkConstInt(Integer());
-    }
-    if (a.isOne())
-    {
-      return b;
-    }
-    return d_nm->mkNode(Kind::MULT, d_nm->mkConstInt(a), b);
-  }
-
   inline Node mul(TNode a, TNode b)
   {
-    if (a.getKind() == Kind::CONST_INTEGER)
-    {
-      const auto& r = a.getConst<Rational>();
-      if (r.isZero())
-      {
-        return d_nm->mkConstInt(Integer());
-      }
-      if (r.isOne())
-      {
-        return b;
-      }
-    }
-    return d_nm->mkNode(Kind::MULT, a, b);
+    return isNumeral(a) ? mul(a.getConst<Rational>(), b)
+                        : d_nm->mkNode(Kind::MULT, a, b);
   }
 
   /** Make polynomial from coeffs and vars, where the last coeff is the
@@ -322,7 +299,7 @@ struct ExpressionHelper
       }
     }
     terms.push_back(coefficients[arity]);
-    const Node rv = d_nm->mkNode(Kind::EQUAL, sum(terms), p.val);
+    const Node rv = sum(terms).eqNode(p.val);
     TRACELN(p << " -> " << rv);
     return rv;
   }
@@ -330,14 +307,13 @@ struct ExpressionHelper
   std::vector<Node> mkCoefficients(const std::vector<Node>& vars)
   {
     std::vector<Node> coeffs;
-    const TypeNode intt = d_nm->integerType();
     SkolemManager* const sm = d_nm->getSkolemManager();
     coeffs.reserve(vars.size() + 1);
     for (size_t i = 0; i < vars.size(); i++)
     {
-      coeffs.push_back(sm->mkDummySkolem("k", intt, "coefficient in lmb"));
+      coeffs.push_back(sm->mkDummySkolem("k", d_tn, "coefficient in lmb"));
     }
-    coeffs.push_back(sm->mkDummySkolem("c", intt, "intercept in lmb"));
+    coeffs.push_back(sm->mkDummySkolem("c", d_tn, "intercept in lmb"));
     return coeffs;
   }
 };
@@ -392,15 +368,15 @@ static bool isPos(const LiaModelBuilder::FunArgs& args,
 {
   const auto arity = args.size();
   Assert(arity + 1 == solution.size());
-  Integer result;
+  Rational result;
   for (size_t i = 0; i < arity; i++)
   {
-    auto v = getInt(solution[i]);
+    auto v = getNumeral(solution[i]);
     v *= args[i];
     result += v;
   }
-  result += getInt(solution[arity]);
-  return !result.strictlyNegative();
+  result += getNumeral(solution[arity]);
+  return result.sgn() >= 0;
 }
 
 /** Heuristically find a split index for given points at given indices. **/
@@ -454,11 +430,7 @@ static inline bool checkSAT(std::unique_ptr<SolverEngine>& liaChecker)
   Unreachable();
 }
 
-Node LiaModelBuilder::buildBodyFun()
-{
-  const auto arity = d_vars.size();
-  return arity == 1 ? buildFunGreedyUnary(0) : buildFunGreedyRec(0);
-}
+Node LiaModelBuilder::buildBodyFun() { return buildFunGreedyRec(0); }
 
 Node LiaModelBuilder::buildBodyPred()
 {
@@ -492,8 +464,7 @@ Node LiaModelBuilder::buildPredSmarterRec(const std::vector<size_t>& indices)
   initializeSubsolver(liaChecker, d_env);
   liaChecker->setOption("produce-models", "true");
   liaChecker->setOption("incremental", "true");
-  ExpressionHelper eh(nm);
-  std::vector<Node> coefficients(eh.mkCoefficients(d_vars));
+  std::vector<Node> coefficients(d_h->mkCoefficients(d_vars));
   std::vector<Node> solution;
   TRACELN("splitting on: " << d_points[indices[split]] << ':'
                            << d_points[indices[split + 1]]);
@@ -503,7 +474,7 @@ Node LiaModelBuilder::buildPredSmarterRec(const std::vector<size_t>& indices)
   for (size_t ii = split; ii < indices.size() && solvedAllRHS; ++ii)
   {
     const auto point = d_points[indices[ii]];
-    liaChecker->assertFormula(eh.pt2ineq(point, coefficients));
+    liaChecker->assertFormula(d_h->pt2ineq(point, coefficients));
     solvedAllRHS = checkSAT(liaChecker);
     if (solvedAllRHS)
     {
@@ -517,7 +488,7 @@ Node LiaModelBuilder::buildPredSmarterRec(const std::vector<size_t>& indices)
     for (size_t ii = split; ii-- && solvedAllLHS;)
     {
       const auto point = d_points[indices[ii]];
-      liaChecker->assertFormula(eh.pt2ineq(point, coefficients));
+      liaChecker->assertFormula(d_h->pt2ineq(point, coefficients));
       solvedAllLHS = checkSAT(liaChecker);
       if (solvedAllLHS)
       {
@@ -528,7 +499,7 @@ Node LiaModelBuilder::buildPredSmarterRec(const std::vector<size_t>& indices)
   }
   Assert(isPos(d_points[indices[split]].args, solution)
          != isPos(d_points[indices[split + 1]].args, solution));
-  const Node guard = eh.makePredSegment(solution, d_vars);
+  const Node guard = d_h->makePredSegment(solution, d_vars);
 
   if (solvedAllRHS && solvedAllLHS)
   {
@@ -572,12 +543,11 @@ Node LiaModelBuilder::buildPredGreedyRec(size_t ix)
   initializeSubsolver(liaChecker, d_env);
   liaChecker->setOption("produce-models", "true");
   liaChecker->setOption("incremental", "true");
-  ExpressionHelper eh(nm);
-  std::vector<Node> coefficients(eh.mkCoefficients(d_vars));
+  std::vector<Node> coefficients(d_h->mkCoefficients(d_vars));
   std::vector<Node> solution;
   for (; ix < d_points.size(); ix++)
   {
-    liaChecker->assertFormula(eh.pt2ineq(d_points[ix], coefficients));
+    liaChecker->assertFormula(d_h->pt2ineq(d_points[ix], coefficients));
     if (checkSAT(liaChecker))
     {
       copySolution(liaChecker, coefficients, solution);
@@ -591,7 +561,7 @@ Node LiaModelBuilder::buildPredGreedyRec(size_t ix)
 
   const Node firstSegment = solution.empty()
                                 ? d_points[ix].val
-                                : eh.makePredSegment(solution, d_vars);
+                                : d_h->makePredSegment(solution, d_vars);
   if (ix >= d_points.size())  // all on single hyperplane
   {
     return firstSegment;
@@ -607,19 +577,23 @@ Node LiaModelBuilder::buildPredGreedyRec(size_t ix)
                       && lastCoor[split_pos] == splitCoor[split_pos];
        split_pos++)
     ;
-  if (split_pos < splitCoor.size()) split_pos++;
+  if (split_pos < splitCoor.size())
+  {
+    split_pos++;
+  }
   for (size_t i = 0; i < split_pos; i++)
   {
-    const auto ci = nm->mkConstInt(splitCoor[i]);
+    const auto ci = d_h->mkNum(splitCoor[i]);
     conj.push_back(nm->mkNode(Kind::LT, d_vars[i], ci));
-    disjuncts.push_back(conj.size() == 1 ? conj[0]
-                                         : nm->mkNode(Kind::AND, conj));
+    disjuncts.push_back(nm->mkAnd(conj));
     conj.pop_back();
     if (i + 1 < split_pos)
-      conj.push_back(nm->mkNode(Kind::EQUAL, d_vars[i], ci));
+    {
+      conj.push_back(d_vars[i].eqNode(ci));
+    }
   }
   return nm->mkNode(
-      Kind::ITE, eh.disjoin(disjuncts), firstSegment, buildPredGreedyRec(ix));
+      Kind::ITE, nm->mkOr(disjuncts), firstSegment, buildPredGreedyRec(ix));
 }
 
 Node LiaModelBuilder::buildFunGreedyRec(size_t ix)
@@ -636,19 +610,18 @@ Node LiaModelBuilder::buildFunGreedyRec(size_t ix)
   initializeSubsolver(liaChecker, d_env);
   liaChecker->setOption("produce-models", "true");
   liaChecker->setOption("incremental", "true");
-  ExpressionHelper eh(nm);
-  std::vector<Node> coefficients(eh.mkCoefficients(d_vars));
+  std::vector<Node> coefficients(d_h->mkCoefficients(d_vars));
   // default solution is constant
-  std::vector<Node> solution(coefficients.size(), nm->mkConstInt(Integer(0)));
+  std::vector<Node> solution(coefficients.size(), d_h->mkZero());
   solution.back() = cur.val;
   TRACELN("cur: " << cur);
   TRACELN("coefficients: " << coefficients);
   TRACELN("current sol: " << solution);
-  liaChecker->assertFormula(eh.pt2eq(cur, coefficients));
+  liaChecker->assertFormula(d_h->pt2eq(cur, coefficients));
   // greedily place points on a single hyperplane until impossible
   for (; ix < d_points.size(); ix++)
   {
-    liaChecker->assertFormula(eh.pt2eq(d_points[ix], coefficients));
+    liaChecker->assertFormula(d_h->pt2eq(d_points[ix], coefficients));
     if (checkSAT(liaChecker))
     {
       copySolution(liaChecker, coefficients, solution);
@@ -660,7 +633,7 @@ Node LiaModelBuilder::buildFunGreedyRec(size_t ix)
     }
   }
 
-  const Node firstSegment = eh.makePoly(solution, d_vars);
+  const Node firstSegment = d_h->makePoly(solution, d_vars);
   if (ix >= d_points.size())
   {
     return firstSegment;
@@ -682,74 +655,17 @@ Node LiaModelBuilder::buildFunGreedyRec(size_t ix)
   }
   for (size_t i = 0; i < split_pos; i++)
   {
-    const auto ci = nm->mkConstInt(splitCoor[i]);
+    const auto ci = d_h->mkNum(splitCoor[i]);
     conj.push_back(nm->mkNode(Kind::LT, d_vars[i], ci));
-    disjuncts.push_back(conj.size() == 1 ? conj[0]
-                                         : nm->mkNode(Kind::AND, conj));
+    disjuncts.push_back(nm->mkAnd(conj));
     conj.pop_back();
     if (i + 1 < split_pos)
     {
-      conj.push_back(nm->mkNode(Kind::EQUAL, d_vars[i], ci));
+      conj.push_back(d_vars[i].eqNode(ci));
     }
   }
   return nm->mkNode(
-      Kind::ITE, eh.disjoin(disjuncts), firstSegment, buildFunGreedyRec(ix));
-}
-
-Node LiaModelBuilder::buildFunGreedyUnary(size_t ix)
-{
-  Assert(!d_points.empty());
-  dbg_trace_points(ix, d_points);
-  NodeManager* const nm = NodeManager::currentNM();
-  const FunPoint& cur = d_points[ix++];
-  if (ix == d_points.size())
-  {
-    TRACELN("const:" << cur.val);
-    return cur.val;
-  }
-  const FunPoint& next = d_points[ix];
-  TRACELN(cur << ".." << next);
-  const auto curx = cur.args[0];
-  const auto nextx = next.args[0];
-  const auto cury = getInt(cur.val);
-  const auto nexty = getInt(next.val);
-  const auto dy = cury - nexty;
-  const auto dx = curx - nextx;
-  Node firstSegment;
-  ExpressionHelper eh(nm);
-  if (dx.divides(dy))
-  {
-    const auto a = dy.isZero() ? dy : dy.exactQuotient(dx);
-    const auto c = cury - a * curx;
-    TRACELN(a << "x + " << c);
-    firstSegment = eh.addi(c, eh.muli(a, d_vars[0]));
-    for (ix++; ix < d_points.size(); ix++)
-    {
-      const auto px = d_points[ix].args[0];
-      const auto py = getInt(d_points[ix].val);
-      if (a * px + c != py)
-      {
-        break;
-      }
-    }
-  }
-  else
-  {
-    TRACELN("no sol");
-    firstSegment = nm->mkConstInt(cury);
-  }
-  TRACELN("firstSegment:" << firstSegment);
-
-  if (ix >= d_points.size())  // all on single line
-  {
-    return firstSegment;
-  }
-  else
-  {
-    const auto split = nm->mkConstInt(d_points[ix].args[0]);
-    const auto lt = nm->mkNode(Kind::LT, d_vars[0], split);
-    return nm->mkNode(Kind::ITE, lt, firstSegment, buildFunGreedyUnary(ix));
-  }
+      Kind::ITE, nm->mkOr(disjuncts), firstSegment, buildFunGreedyRec(ix));
 }
 
 /** Reduce repeated points */
@@ -785,6 +701,8 @@ void LiaModelBuilder::simplify()
   Assert(d_typen.getNumChildren() > 0);
   const auto arity = d_vars.size();
   const bool isPred = d_typen[arity].isBoolean();
+  const bool isInt = arity > 0 && d_typen[0].isInteger();
+  d_h.reset(new ExpressionHelper(NodeManager::currentNM(), isInt));
   d_body = isPred ? buildBodyPred() : buildBodyFun();
   TRACELN("simplified " << d_op << ": " << d_body);
 }
@@ -806,7 +724,7 @@ Node LiaModelBuilder::getFunctionValue(const std::string& argPrefix,
       std::vector<Node> eqs(args.size());
       for (size_t i = 0; i < args.size(); i++)
       {
-        eqs[i] = d_vars[i].eqNode(nm->mkConstInt(args[i]));
+        eqs[i] = d_vars[i].eqNode(d_h->mkNum(args[i]));
       }
       d_body = nm->mkNode(Kind::ITE, nm->mkAnd(eqs), v, d_body);
     }
@@ -821,19 +739,26 @@ Node LiaModelBuilder::getFunctionValue(const std::string& argPrefix,
   return nm->mkNode(Kind::LAMBDA, boundVarList, d_body);
 }
 
+LiaModelBuilder::~LiaModelBuilder() {}
+
 bool LiaModelBuilder::canHandle(const Node op)
 {
   const TypeNode tn = op.getType();
   const auto sz = tn.getNumChildren();
   Assert(sz > 0);
-  for (size_t i = 0; i + 1 < sz; i++)
+  const TypeNode& trv = tn[sz - 1];
+  bool allInt = trv.isInteger() || trv.isBoolean();
+  bool allReal = trv.isReal() || trv.isBoolean();
+  for (size_t i = 0, iend = sz - 1; i < iend; i++)
   {
-    if (!tn[i].isInteger())
+    allInt &= tn[i].isInteger();
+    allReal &= tn[i].isReal();
+    if (!allInt && !allReal)
     {
       return false;
     }
   }
-  return tn[sz - 1].isInteger() || tn[sz - 1].isBoolean();
+  return true;
 }
 
 void LiaModelBuilder::debugPrint(std::ostream& out, TheoryModel* m, int ind)

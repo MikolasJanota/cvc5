@@ -5,6 +5,7 @@
  * Copyright (C) 2023, Mikolas Janota
  */
 #pragma once
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -22,6 +23,8 @@ class TheoryModel;
 class Rewriter;
 namespace arith::linear {
 
+struct ExpressionHelper;
+
 class LiaModelBuilder : public AbstractFunModel, protected EnvObj
 {
  public:
@@ -30,7 +33,7 @@ class LiaModelBuilder : public AbstractFunModel, protected EnvObj
 
  public:
   LiaModelBuilder(Env& env, Node op, const std::string argPrefix);
-  virtual ~LiaModelBuilder() {}
+  virtual ~LiaModelBuilder();
   virtual void clear() override { d_points.clear(); };
   virtual void setValue(TheoryModel* m,
                         Node n,
@@ -51,7 +54,7 @@ class LiaModelBuilder : public AbstractFunModel, protected EnvObj
                                 Rewriter* r) override;
 
  public:
-  using FunArgs = std::vector<Integer>;
+  using FunArgs = std::vector<Rational>;
   struct FunPoint
   {
     FunArgs args;
@@ -74,14 +77,14 @@ class LiaModelBuilder : public AbstractFunModel, protected EnvObj
   /** The function points on which we are building.. **/
   std::vector<FunPoint> d_points;
 
+  std::unique_ptr<ExpressionHelper> d_h;
+
   /** Build function body. **/
   Node buildBodyPred();
   /** Build predicate body. **/
   Node buildBodyFun();
 
-  /** Build unary function body starting at point ix. **/
-  Node buildFunGreedyUnary(size_t ix);
-  /** Build general function body starting at point ix. **/
+  /** Build function body starting at point ix. **/
   Node buildFunGreedyRec(size_t ix);
   /** Build general pred body starting at point ix. **/
   Node buildPredGreedyRec(size_t ix);
