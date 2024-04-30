@@ -273,6 +273,8 @@ void InstStrategyMbqi::process(Node q)
                     << ", use arbitrary term for instantiation" << std::endl;
       vc = nm->mkGroundTerm(v.getType());
     }
+    Trace("mbqi") << "convert from model " << v <<  " -> " << vc
+                    << std::endl;
     v = vc;
   }
 
