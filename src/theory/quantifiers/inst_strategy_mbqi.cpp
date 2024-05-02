@@ -15,10 +15,13 @@
 
 #include "theory/quantifiers/inst_strategy_mbqi.h"
 
+#include <memory>
+
 #include "base/map_util.h"
 #include "expr/node_algorithm.h"
 #include "expr/skolem_manager.h"
 #include "expr/subs.h"
+#include "options/quantifiers_options.h"
 #include "theory/quantifiers/first_order_model.h"
 #include "theory/quantifiers/instantiate.h"
 #include "theory/quantifiers/quantifiers_rewriter.h"
@@ -34,6 +37,77 @@ using namespace cvc5::internal::kind;
 namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
+
+#define TRACELN(prn)                                \
+  do                                                \
+  {                                                 \
+    Trace("mbqi") << "[mbqi] " << prn << std::endl; \
+  } while (false);
+
+class Values
+{
+ public:
+  Values(TermRegistry& tr, QuantifiersState& qs)
+      : d_treg(tr), d_tdb(*tr.getTermDatabase()), d_qs(qs)
+  {
+  }
+
+  Node findTerm(TNode value);
+  virtual ~Values() = default;
+
+ private:
+  /** Reference to the term registry */
+  TermRegistry& d_treg;
+  /** Pointer to term database */
+  TermDb& d_tdb;
+  /** Reference to quantifiers state */
+  QuantifiersState& d_qs;
+  /** a list of terms for each type needed */
+  std::map<TypeNode, std::vector<Node> > d_termDbList;
+
+  const std::vector<Node>& getTerms(const TypeNode tn);
+};
+
+const std::vector<Node>& Values::getTerms(const TypeNode tnode)
+{
+  auto [it, newType] = d_termDbList.insert({tnode, std::vector<Node>()});
+  auto& vec = it->second;
+  if (!newType)
+  {
+    return vec;
+  }
+  std::set<Node> repsFound;
+  for (size_t i = 0, ngts = d_tdb.getNumTypeGroundTerms(tnode); i < ngts; i++)
+  {
+    Node gt = d_tdb.getTypeGroundTerm(tnode, i);
+    if (!quantifiers::TermUtil::hasInstConstAttr(gt))
+    {
+      auto [_, newRep] = repsFound.insert(d_qs.getRepresentative(gt));
+      if (newRep)
+      {
+        vec.push_back(gt);
+      }
+    }
+  }
+  return vec;
+}
+
+Node Values::findTerm(TNode value)
+{
+  const FirstOrderModel* const fm = d_treg.getModel();
+  const auto& terms = getTerms(value.getType());
+  std::vector<Node> candidates;
+  for (const Node& gt : terms)
+  {
+    Node gt_val = fm->getValue(gt);
+    if (gt_val == value)
+    {
+      candidates.push_back(gt);
+      TRACELN("candidate: " << value << "->" << gt);
+    }
+  }
+  return candidates.empty() ? Node::null() : candidates[0];
+}
 
 InstStrategyMbqi::InstStrategyMbqi(Env& env,
                                    QuantifiersState& qs,
@@ -156,7 +230,7 @@ void InstStrategyMbqi::process(Node q)
         processedUsort.insert(tn);
     if (!puin.second)
     {
-      continue; // already processed
+      continue;  // already processed
     }
 
     const std::vector<Node>* treps = rs->getTypeRepsOrNull(tn);
@@ -255,6 +329,10 @@ void InstStrategyMbqi::process(Node q)
                     << std::endl;
     }
   }
+  // TODO: this could be cached across different quantifiers
+  std::unique_ptr<Values> vals(
+      options().quantifiers.mbqiGT ? new Values(d_treg, d_qstate) : nullptr);
+
   // try to convert those terms to an instantiation
   tmpConvertMap.clear();
   for (Node& v : terms)
@@ -273,9 +351,16 @@ void InstStrategyMbqi::process(Node q)
                     << ", use arbitrary term for instantiation" << std::endl;
       vc = nm->mkGroundTerm(v.getType());
     }
-    Trace("mbqi") << "convert from model " << v <<  " -> " << vc
-                    << std::endl;
+    Trace("mbqi") << "convert from model " << v << " -> " << vc << std::endl;
     v = vc;
+    if (vals)
+    {
+      if (const Node bt = vals->findTerm(v); !bt.isNull())
+      {
+        TRACELN("changing: " << v << " -> " << bt);
+        v = bt;
+      }
+    }
   }
 
   // get a term that has the same model value as the value each fresh variable

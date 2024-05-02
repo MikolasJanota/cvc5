@@ -192,6 +192,14 @@ name   = "Quantifiers"
   default    = "false"
   help       = "use model-based quantifier instantiation"
 
+[[option]]
+  name       = "mbqiGT"
+  category   = "expert"
+  long       = "mbqi-gt"
+  type       = "bool"
+  default    = "false"
+  help       = "Try to instantiate by existing ground terms in mbqi, whenever possible."
+
 #### E-matching options
 
 [[option]]
