@@ -27,6 +27,8 @@ namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
+class InvValues;
+
 /**
  * InstStrategyMbqi
  *
@@ -107,6 +109,8 @@ class InstStrategyMbqi : public QuantifiersModule
   std::unordered_set<Node> d_quantChecked;
   /** Kinds that cannot appear in queries */
   std::unordered_set<Kind, kind::KindHashFunction> d_nonClosedKinds;
+
+  std::unique_ptr<InvValues> d_invVals;
 };
 
 }  // namespace quantifiers

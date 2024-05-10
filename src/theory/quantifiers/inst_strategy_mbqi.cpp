@@ -44,16 +44,17 @@ namespace quantifiers {
     Trace("mbqi") << "[mbqi] " << prn << std::endl; \
   } while (false);
 
-class Values
+class InvValues
 {
  public:
-  Values(TermRegistry& tr, QuantifiersState& qs)
+  InvValues(TermRegistry& tr, QuantifiersState& qs)
       : d_treg(tr), d_tdb(*tr.getTermDatabase()), d_qs(qs)
   {
   }
 
+  virtual ~InvValues() {}
+
   Node findTerm(TNode value);
-  virtual ~Values() = default;
 
  private:
   /** Reference to the term registry */
@@ -140,6 +141,10 @@ void InstStrategyMbqi::check(Theory::Effort e, QEffort quant_e)
   {
     return;
   }
+  m_vals.reset(options().quantifiers.mbqiGT
+                   ? std::make_unique<InvValues>(d_treg, d_qstate)
+                   : nullptr);
+
   // see if the negation of each quantified formula is satisfiable in the model
   std::vector<Node> disj;
   FirstOrderModel* fm = d_treg.getModel();
@@ -330,8 +335,6 @@ void InstStrategyMbqi::process(Node q)
     }
   }
   // TODO: this could be cached across different quantifiers
-  std::unique_ptr<Values> vals(
-      options().quantifiers.mbqiGT ? new Values(d_treg, d_qstate) : nullptr);
 
   // try to convert those terms to an instantiation
   tmpConvertMap.clear();
@@ -353,9 +356,9 @@ void InstStrategyMbqi::process(Node q)
     }
     Trace("mbqi") << "convert from model " << v << " -> " << vc << std::endl;
     v = vc;
-    if (vals)
+    if (d_invVals)
     {
-      if (const Node bt = vals->findTerm(v); !bt.isNull())
+      if (const Node bt = d_invVals->findTerm(v); !bt.isNull())
       {
         TRACELN("changing: " << v << " -> " << bt);
         v = bt;
