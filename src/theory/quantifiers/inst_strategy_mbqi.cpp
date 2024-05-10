@@ -69,7 +69,7 @@ class InvValues
   const std::vector<Node>& getTerms(const TypeNode tn);
 };
 
-const std::vector<Node>& Values::getTerms(const TypeNode tnode)
+const std::vector<Node>& InvValues::getTerms(const TypeNode tnode)
 {
   auto [it, newType] = d_termDbList.insert({tnode, std::vector<Node>()});
   auto& vec = it->second;
@@ -93,7 +93,7 @@ const std::vector<Node>& Values::getTerms(const TypeNode tnode)
   return vec;
 }
 
-Node Values::findTerm(TNode value)
+Node InvValues::findTerm(TNode value)
 {
   const FirstOrderModel* const fm = d_treg.getModel();
   const auto& terms = getTerms(value.getType());
