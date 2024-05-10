@@ -141,9 +141,8 @@ void InstStrategyMbqi::check(Theory::Effort e, QEffort quant_e)
   {
     return;
   }
-  m_vals.reset(options().quantifiers.mbqiGT
-                   ? std::make_unique<InvValues>(d_treg, d_qstate)
-                   : nullptr);
+  d_invVals.reset(options().quantifiers.mbqiGT ? new InvValues(d_treg, d_qstate)
+                                               : nullptr);
 
   // see if the negation of each quantified formula is satisfiable in the model
   std::vector<Node> disj;
