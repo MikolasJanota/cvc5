@@ -48,7 +48,7 @@ class InstStrategyMbqi : public QuantifiersModule
                    QuantifiersInferenceManager& qim,
                    QuantifiersRegistry& qr,
                    TermRegistry& tr);
-  ~InstStrategyMbqi() {}
+  virtual ~InstStrategyMbqi();
   /** reset round */
   void reset_round(Theory::Effort e) override;
   /** needs check */

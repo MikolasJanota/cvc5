@@ -23,6 +23,7 @@
 #include "expr/subs.h"
 #include "options/quantifiers_options.h"
 #include "theory/quantifiers/first_order_model.h"
+#include "theory/quantifiers/index_trie.h"
 #include "theory/quantifiers/instantiate.h"
 #include "theory/quantifiers/quantifiers_rewriter.h"
 #include "theory/quantifiers/skolemize.h"
@@ -30,6 +31,7 @@
 #include "theory/smt_engine_subsolver.h"
 #include "theory/strings/theory_strings_utils.h"
 #include "theory/uf/function_const.h"
+#include "util/random.h"
 
 using namespace std;
 using namespace cvc5::internal::kind;
@@ -54,6 +56,8 @@ class InvValues
 
   virtual ~InvValues() {}
 
+  /** Look for a term that has the given value in the current model, returns the
+   * null node if none found */
   Node findTerm(TNode value);
 
  private:
@@ -66,7 +70,10 @@ class InvValues
   /** a list of terms for each type needed */
   std::map<TypeNode, std::vector<Node> > d_termDbList;
 
+  /** get ground terms of certain type, the call is cached */
   const std::vector<Node>& getTerms(const TypeNode tn);
+
+  Node pickTerm(const std::vector<Node>& ts) const;
 };
 
 const std::vector<Node>& InvValues::getTerms(const TypeNode tnode)
@@ -80,10 +87,10 @@ const std::vector<Node>& InvValues::getTerms(const TypeNode tnode)
   std::set<Node> repsFound;
   for (size_t i = 0, ngts = d_tdb.getNumTypeGroundTerms(tnode); i < ngts; i++)
   {
-    Node gt = d_tdb.getTypeGroundTerm(tnode, i);
+    const Node gt = d_tdb.getTypeGroundTerm(tnode, i);
     if (!quantifiers::TermUtil::hasInstConstAttr(gt))
     {
-      auto [_, newRep] = repsFound.insert(d_qs.getRepresentative(gt));
+      const auto [_, newRep] = repsFound.insert(d_qs.getRepresentative(gt));
       if (newRep)
       {
         vec.push_back(gt);
@@ -107,7 +114,20 @@ Node InvValues::findTerm(TNode value)
       TRACELN("candidate: " << value << "->" << gt);
     }
   }
-  return candidates.empty() ? Node::null() : candidates[0];
+  return candidates.empty() ? Node::null() : pickTerm(candidates);
+}
+
+Node InvValues::pickTerm(const std::vector<Node>& ts) const
+{
+  Assert(!ts.empty());
+  for (const Node& t : ts)
+  {
+    if (Random::getRandom().pickWithProb(0.5))
+    {
+      return t;
+    }
+  }
+  return ts[0];
 }
 
 InstStrategyMbqi::InstStrategyMbqi(Env& env,
@@ -122,6 +142,8 @@ InstStrategyMbqi::InstStrategyMbqi(Env& env,
   d_nonClosedKinds.insert(Kind::CODATATYPE_BOUND_VARIABLE);
   d_nonClosedKinds.insert(Kind::UNINTERPRETED_SORT_VALUE);
 }
+
+InstStrategyMbqi::~InstStrategyMbqi() {}
 
 void InstStrategyMbqi::reset_round(Theory::Effort e) { d_quantChecked.clear(); }
 
@@ -333,7 +355,6 @@ void InstStrategyMbqi::process(Node q)
                     << std::endl;
     }
   }
-  // TODO: this could be cached across different quantifiers
 
   // try to convert those terms to an instantiation
   tmpConvertMap.clear();
@@ -355,7 +376,7 @@ void InstStrategyMbqi::process(Node q)
     }
     Trace("mbqi") << "convert from model " << v << " -> " << vc << std::endl;
     v = vc;
-    if (d_invVals)
+    if (d_invVals && Random::getRandom().pickWithProb(0.33))
     {
       if (const Node bt = d_invVals->findTerm(v); !bt.isNull())
       {
@@ -564,7 +585,7 @@ Node InstStrategyMbqi::convertFromModel(
     }
     if (processingChildren.find(cur) == processingChildren.end())
     {
-      Kind ck = cur.getKind();
+      const Kind ck = cur.getKind();
       if (ck == Kind::UNINTERPRETED_SORT_VALUE)
       {
         // converting from query, find the variable that it is equal to
