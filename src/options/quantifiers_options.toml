@@ -530,6 +530,14 @@ name   = "Quantifiers"
   help       = "enumerative instantiation: instantiate with ground terms from relevant domain, then arbitrary ground terms before answering unknown"
 
 [[option]]
+  name       = "enumFair"
+  category   = "expert"
+  long       = "enum-fair"
+  type       = "bool"
+  default    = "false"
+  help       = "try to be more fair in enumerative instantiation, automatically turn off relevant domain"
+
+[[option]]
   name       = "enumInstRd"
   category   = "expert"
   long       = "enum-inst-rd"

@@ -471,18 +471,18 @@ size_t TermTupleEnumeratorBasic::prepareTerms(size_t variableIx)
   if (!ContainsKey(d_termDbList, type_node))
   {
     const size_t ground_terms_count = d_tdb->getNumTypeGroundTerms(type_node);
-    std::map<Node, Node> repsFound;
+    std::set<Node> repsFound;
     for (size_t j = 0; j < ground_terms_count; j++)
     {
-      Node gt = d_tdb->getTypeGroundTerm(type_node, j);
-      if (!quantifiers::TermUtil::hasInstConstAttr(gt))
+      const Node gt = d_tdb->getTypeGroundTerm(type_node, j);
+      const bool add =
+          !quantifiers::TermUtil::hasInstConstAttr(gt)
+          && (d_env->d_fair
+              || repsFound.insert(d_qs.getRepresentative(gt)).second);
+      if (add)
       {
-        Node rep = d_qs.getRepresentative(gt);
-        if (repsFound.find(rep) == repsFound.end())
-        {
-          repsFound[rep] = gt;
-          d_termDbList[type_node].push_back(gt);
-        }
+        d_termDbList[type_node].push_back(gt);
+        Trace("inst-alg-gt") << "[gt] push term " << gt << std::endl;
       }
     }
   }
@@ -508,8 +508,7 @@ class TermTupleEnumeratorPool : public TermTupleEnumeratorBase
   TermTupleEnumeratorPool(Node quantifier,
                           const TermTupleEnumeratorEnv* env,
                           Node pool)
-      : TermTupleEnumeratorBase(quantifier, env),
-        d_pool(pool)
+      : TermTupleEnumeratorBase(quantifier, env), d_pool(pool)
   {
     Assert(d_pool.getKind() == Kind::INST_POOL);
   }

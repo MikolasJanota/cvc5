@@ -176,6 +176,8 @@ bool InstStrategyEnum::process(Node quantifier, bool fullEffort, bool isRd)
   TermTupleEnumeratorEnv ttec;
   ttec.d_fullEffort = fullEffort;
   ttec.d_increaseSum = options().quantifiers.enumInstSum;
+  ttec.d_fair = options().quantifiers.enumFair;
+  isRd = ttec.d_fair || isRd;
   ttec.d_tr = &d_treg;
   // make the enumerator, which is either relevant domain or term database
   // based on the flag isRd.

@@ -68,6 +68,8 @@ struct TermTupleEnumeratorEnv
   bool d_increaseSum;
   /** Term registry */
   TermRegistry* d_tr;
+
+  bool d_fair;
 };
 
 /**  A function to construct a tuple enumerator.
