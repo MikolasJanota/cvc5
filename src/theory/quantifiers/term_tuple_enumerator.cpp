@@ -467,6 +467,7 @@ bool TermTupleEnumeratorBase::nextCombinationSum()
 
 size_t TermTupleEnumeratorBasic::prepareTerms(size_t variableIx)
 {
+  Trace("inst-alg-gt") << "[gt] prepareTerms varIx " << variableIx << std::endl;
   const TypeNode type_node = d_typeCache[variableIx];
   if (!ContainsKey(d_termDbList, type_node))
   {
@@ -475,6 +476,7 @@ size_t TermTupleEnumeratorBasic::prepareTerms(size_t variableIx)
     for (size_t j = 0; j < ground_terms_count; j++)
     {
       const Node gt = d_tdb->getTypeGroundTerm(type_node, j);
+      Trace("inst-alg-gt") << "[gt] candidate term " << gt << "...";
       const bool add =
           !quantifiers::TermUtil::hasInstConstAttr(gt)
           && (d_env->d_fair
@@ -482,8 +484,8 @@ size_t TermTupleEnumeratorBasic::prepareTerms(size_t variableIx)
       if (add)
       {
         d_termDbList[type_node].push_back(gt);
-        Trace("inst-alg-gt") << "[gt] push term " << gt << std::endl;
       }
+      Trace("inst-alg-gt") << (add ? "pushed" : "skipped") << std::endl;
     }
   }
 
