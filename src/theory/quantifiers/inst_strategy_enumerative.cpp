@@ -93,7 +93,9 @@ void InstStrategyEnum::check(Theory::Effort e, QEffort quant_e)
   }
   Assert(!d_qstate.isInConflict());
   beginCallDebug();
-  unsigned rstart = options().quantifiers.enumInstRd ? 0 : 1;
+  const bool isFair = options().quantifiers.enumFair;
+  const bool isRd = !isFair && options().quantifiers.enumInstRd;
+  unsigned rstart = isRd ? 0 : 1;
   unsigned rend = fullEffort ? 1 : rstart;
   unsigned addedLemmas = 0;
   // First try in relevant domain of all quantified formulas, if no
@@ -171,13 +173,15 @@ bool InstStrategyEnum::process(Node quantifier, bool fullEffort, bool isRd)
   {
     return false;
   }
+  const bool isFair = options().quantifiers.enumFair;
+  Assert(!isRd || !isFair) << "Fairness not implemented for relevant domain.";
 
   Instantiate* ie = d_qim.getInstantiate();
   TermTupleEnumeratorEnv ttec;
   ttec.d_fullEffort = fullEffort;
   ttec.d_increaseSum = options().quantifiers.enumInstSum;
-  ttec.d_fair = options().quantifiers.enumFair;
-  isRd = !ttec.d_fair && isRd;
+  ttec.d_fair = isFair;
+  ttec.d_ageWeight = options().quantifiers.enumAgeWeight;
   ttec.d_tr = &d_treg;
   // make the enumerator, which is either relevant domain or term database
   // based on the flag isRd.

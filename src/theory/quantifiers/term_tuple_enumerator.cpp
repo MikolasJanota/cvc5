@@ -184,6 +184,13 @@ class TermTupleEnumeratorBasic : public TermTupleEnumeratorBase
   QuantifiersState& d_qs;
   /** Pointer to term database */
   TermDb* d_tdb;
+
+  uint64_t getInstLev(const Node t) const
+  {
+    return t.hasAttribute(InstLevelAttribute())
+               ? t.getAttribute(InstLevelAttribute())
+               : 1000;
+  }
 };
 
 /**
@@ -465,6 +472,25 @@ bool TermTupleEnumeratorBase::nextCombinationSum()
   return true;
 }
 
+struct
+{
+  uint64_t getInstLev(const Node& t) const
+  {
+    return t.hasAttribute(InstLevelAttribute())
+               ? t.getAttribute(InstLevelAttribute())
+               : 1000;
+  }
+
+  bool operator()(const Node& a, const Node& b) const
+  {
+    const auto alev = getInstLev(a);
+    const auto blev = getInstLev(b);
+    const auto adep = quantifiers::TermUtil::getTermDepth(a);
+    const auto bdep = quantifiers::TermUtil::getTermDepth(b);
+    return alev < blev || (alev == blev && adep < bdep);
+  }
+} AgeWeightLexi;
+
 size_t TermTupleEnumeratorBasic::prepareTerms(size_t variableIx)
 {
   Trace("inst-alg-gt") << "[gt] prepareTerms varIx " << variableIx << std::endl;
@@ -472,24 +498,32 @@ size_t TermTupleEnumeratorBasic::prepareTerms(size_t variableIx)
   if (!ContainsKey(d_termDbList, type_node))
   {
     const size_t ground_terms_count = d_tdb->getNumTypeGroundTerms(type_node);
+    std::vector<Node>& terms = d_termDbList[type_node];
     std::set<Node> repsFound;
     for (size_t j = 0; j < ground_terms_count; j++)
     {
       const Node gt = d_tdb->getTypeGroundTerm(type_node, j);
-      Trace("inst-alg-gt") << "[gt] candidate term " << gt << "...";
+      Trace("inst-alg-gt") << "[gt] candidate term " << gt << " lev ("
+                           << getInstLev(gt) << ") ...";
       const bool add =
           !quantifiers::TermUtil::hasInstConstAttr(gt)
           && (d_env->d_fair
               || repsFound.insert(d_qs.getRepresentative(gt)).second);
       if (add)
       {
-        d_termDbList[type_node].push_back(gt);
+        terms.push_back(gt);
       }
       Trace("inst-alg-gt") << (add ? "pushed" : "skipped") << std::endl;
     }
+    if (d_env->d_ageWeight)
+    {
+      Trace("inst-alg-gt") << "[gt] sorting " << terms.size() << " terms";
+      std::stable_sort(terms.begin(), terms.end(), AgeWeightLexi);
+      Trace("inst-alg-gt") << "...sorting done\n";
+    }
   }
 
-  Trace("inst-alg-rd") << "Instantiation Terms for child " << variableIx << ": "
+  Trace("inst-alg-gt") << "Instantiation Terms for child " << variableIx << ": "
                        << d_termDbList[type_node] << std::endl;
   return d_termDbList[type_node].size();
 }

@@ -70,6 +70,7 @@ struct TermTupleEnumeratorEnv
   TermRegistry* d_tr;
 
   bool d_fair;
+  bool d_ageWeight;
 };
 
 /**  A function to construct a tuple enumerator.

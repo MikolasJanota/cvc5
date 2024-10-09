@@ -95,11 +95,8 @@ void Instantiate::addRewriter(InstantiationRewriter* ir)
   d_instRewrite.push_back(ir);
 }
 
-bool Instantiate::addInstantiation(Node q,
-                                   std::vector<Node>& terms,
-                                   InferenceId id,
-                                   Node pfArg,
-                                   bool doVts)
+bool Instantiate::addInstantiation(
+    Node q, std::vector<Node>& terms, InferenceId id, Node pfArg, bool doVts)
 {
   // do the instantiation
   bool ret = addInstantiationInternal(q, terms, id, pfArg, doVts);
@@ -143,7 +140,7 @@ bool Instantiate::addInstantiationInternal(
   {
     TypeNode tn = q[0][i].getType();
     Assert(!terms[i].isNull());
-    Assert (terms[i].getType()==tn);
+    Assert(terms[i].getType() == tn);
     bool bad_inst = false;
     if (TermUtil::containsUninterpretedConstant(terms[i]))
     {
@@ -370,7 +367,7 @@ bool Instantiate::addInstantiationInternal(
       }
     }
   }
-  if (options().quantifiers.instMaxLevel != -1)
+  if (d_qstate.trackInstantiationLevel())
   {
     if (doVts)
     {

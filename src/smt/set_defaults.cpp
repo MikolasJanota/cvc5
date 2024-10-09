@@ -945,7 +945,8 @@ void SetDefaults::setDefaultsPost(const LogicInfo& logic, Options& opts) const
     }
   }
 #endif
-  if (logic.isTheoryEnabled(theory::THEORY_ARITH) && logic.areTranscendentalsUsed())
+  if (logic.isTheoryEnabled(theory::THEORY_ARITH)
+      && logic.areTranscendentalsUsed())
   {
     SET_AND_NOTIFY_IF_NOT_USER_VAL_SYM(
         arith, nlExt, options::NlExtMode::FULL, "logic with transcendentals");
@@ -1415,6 +1416,10 @@ void SetDefaults::widenLogic(LogicInfo& logic, const Options& opts) const
 void SetDefaults::setDefaultsQuantifiers(const LogicInfo& logic,
                                          Options& opts) const
 {
+  if (opts.quantifiers.enumFair)
+  {
+    SET_AND_NOTIFY(quantifiers, enumInstRd, false, "enum-inst-rd");
+  }
   if (opts.quantifiers.fullSaturateQuant)
   {
     SET_AND_NOTIFY(quantifiers, enumInst, true, "full-saturate-quant");

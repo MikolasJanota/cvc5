@@ -538,6 +538,14 @@ name   = "Quantifiers"
   help       = "try to be more fair in enumerative instantiation, automatically turn off relevant domain"
 
 [[option]]
+  name       = "enumAgeWeight"
+  category   = "expert"
+  long       = "enum-age-weight"
+  type       = "bool"
+  default    = "false"
+  help       = "using age-weight heuristic in enumeration"
+
+[[option]]
   name       = "enumInstRd"
   category   = "expert"
   long       = "enum-inst-rd"

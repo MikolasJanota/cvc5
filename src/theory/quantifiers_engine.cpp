@@ -167,7 +167,7 @@ void QuantifiersEngine::ppNotifyAssertions(
   Trace("quant-engine-proc")
       << "ppNotifyAssertions in QE, #assertions = " << assertions.size()
       << std::endl;
-  if (options().quantifiers.instMaxLevel != -1)
+  if (d_qstate.trackInstantiationLevel())
   {
     for (const Node& a : assertions)
     {

@@ -139,6 +139,12 @@ QuantifiersStatistics& QuantifiersState::getStats() { return d_statistics; }
 
 void QuantifiersState::notifyConflictingInst() { d_conflictInst = true; }
 
+bool QuantifiersState::trackInstantiationLevel()
+{
+  return options().quantifiers.enumFair
+         || options().quantifiers.instMaxLevel != -1;
+}
+
 }  // namespace quantifiers
 }  // namespace theory
 }  // namespace cvc5::internal

@@ -167,7 +167,7 @@ Node TermDb::getOrMakeTypeFreshVariable(TypeNode tn)
     Node k = sm->mkDummySkolem(ss.str(), tn, "is a termDb fresh variable");
     Trace("mkVar") << "TermDb:: Make variable " << k << " : " << tn
                    << std::endl;
-    if (options().quantifiers.instMaxLevel != -1)
+    if (d_qstate.trackInstantiationLevel())
     {
       QuantAttributes::setInstantiationLevelAttr(k, 0);
     }
