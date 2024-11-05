@@ -16,6 +16,7 @@
 #ifndef CVC5__THEORY__QUANTIFIERS__TERM_TUPLE_ENUMERATOR_H
 #define CVC5__THEORY__QUANTIFIERS__TERM_TUPLE_ENUMERATOR_H
 
+#include <random>
 #include <vector>
 
 #include "expr/node.h"
@@ -68,8 +69,10 @@ struct TermTupleEnumeratorEnv
   bool d_increaseSum;
   /** Term registry */
   TermRegistry* d_tr;
+  std::mt19937* d_rndGen;
 
   bool d_fair;
+  bool d_fairPerturbation;
   bool d_ageWeight;
 };
 

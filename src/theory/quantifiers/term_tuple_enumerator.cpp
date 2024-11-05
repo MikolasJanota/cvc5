@@ -16,9 +16,9 @@
 #include "theory/quantifiers/term_tuple_enumerator.h"
 
 #include <algorithm>
-#include <functional>
 #include <iterator>
 #include <map>
+#include <random>
 #include <vector>
 
 #include "base/map_util.h"
@@ -179,6 +179,7 @@ class TermTupleEnumeratorBasic : public TermTupleEnumeratorBase
   /**  a list of terms for each type */
   std::map<TypeNode, std::vector<Node> > d_termDbList;
   virtual size_t prepareTerms(size_t variableIx) override;
+  size_t prepareTermsInternal(TypeNode type_node, size_t variableIx);
   virtual Node getTerm(size_t variableIx, size_t term_index) override;
   /** Reference to quantifiers state */
   QuantifiersState& d_qs;
@@ -495,43 +496,69 @@ size_t TermTupleEnumeratorBasic::prepareTerms(size_t variableIx)
 {
   Trace("inst-alg-gt") << "[gt] prepareTerms varIx " << variableIx << std::endl;
   const TypeNode type_node = d_typeCache[variableIx];
-  if (!ContainsKey(d_termDbList, type_node))
+  const size_t sz = prepareTermsInternal(type_node, variableIx);
+  Trace("inst-alg-gt") << "Instantiation Terms for child " << variableIx << ": "
+                       << d_termDbList[type_node] << std::endl;
+  return sz;
+}
+
+size_t TermTupleEnumeratorBasic::prepareTermsInternal(TypeNode type_node,
+                                                      size_t variableIx)
+{
+  if (ContainsKey(d_termDbList, type_node))
   {
-    const size_t ground_terms_count = d_tdb->getNumTypeGroundTerms(type_node);
-    std::vector<Node>& terms = d_termDbList[type_node];
-    std::set<Node> repsFound;
-    for (size_t j = 0; j < ground_terms_count; j++)
+    return d_termDbList[type_node].size();
+  }
+
+  const size_t ground_terms_count = d_tdb->getNumTypeGroundTerms(type_node);
+  std::vector<Node>& terms = d_termDbList[type_node];
+  std::set<Node> repsFound;
+  for (size_t j = 0; j < ground_terms_count; j++)
+  {
+    const Node gt = d_tdb->getTypeGroundTerm(type_node, j);
+    const bool add =
+        !quantifiers::TermUtil::hasInstConstAttr(gt)
+        && (d_env->d_fair
+            || repsFound.insert(d_qs.getRepresentative(gt)).second);
+    if (add)
     {
-      const Node gt = d_tdb->getTypeGroundTerm(type_node, j);
-      Trace("inst-alg-gt") << "[gt] candidate term " << gt << " lev ("
-                           << getInstLev(gt) << ") ...";
-      const bool add =
-          !quantifiers::TermUtil::hasInstConstAttr(gt)
-          && (d_env->d_fair
-              || repsFound.insert(d_qs.getRepresentative(gt)).second);
-      if (add)
-      {
-        terms.push_back(gt);
-      }
-      Trace("inst-alg-gt") << (add ? "pushed" : "skipped") << std::endl;
+      terms.push_back(gt);
     }
-    if (d_env->d_ageWeight)
+    Trace("inst-alg-gt") << "[gt] candidate term " << gt << " lev ("
+                         << getInstLev(gt) << ") ..."
+                         << (add ? "pushed" : "skipped") << std::endl;
+  }
+  if (d_env->d_ageWeight)
+  {
+    Trace("inst-alg-gt") << "[gt] sorting " << terms.size() << " terms";
+    std::stable_sort(terms.begin(), terms.end(), AgeWeightLexi);
+    Trace("inst-alg-gt") << "...sorting done\n";
+  }
+
+  const auto total_size = terms.size();
+  if (d_env->d_fairPerturbation && total_size > 0)
+  {
+    std::uniform_real_distribution<> rdis(0.0, 1.0);
+    std::uniform_int_distribution<> idis(0, total_size - 1);
+    auto& gen = *d_env->d_rndGen;
+    while (rdis(gen) < 0.1)
     {
-      Trace("inst-alg-gt") << "[gt] sorting " << terms.size() << " terms";
-      std::stable_sort(terms.begin(), terms.end(), AgeWeightLexi);
-      Trace("inst-alg-gt") << "...sorting done\n";
+      const auto i = idis(gen);
+      const auto j = idis(gen);
+      std::swap(terms[i], terms[j]);
+      Trace("inst-alg-gt") << "[gt] Swapping " << i << "<->" << j << std::endl;
     }
   }
 
-  Trace("inst-alg-gt") << "Instantiation Terms for child " << variableIx << ": "
-                       << d_termDbList[type_node] << std::endl;
-  return d_termDbList[type_node].size();
+  Trace("inst-alg-gt") << "[gt] Instantiation Terms for child " << variableIx
+                       << ": " << terms << std::endl;
+  return total_size;
 }
 
 Node TermTupleEnumeratorBasic::getTerm(size_t variableIx, size_t term_index)
 {
   const TypeNode type_node = d_typeCache[variableIx];
-  Assert(term_index < d_termDbList[type_node].size());
+  Assert(term_index < d_termDbList.at(type_node).size());
   return d_termDbList[type_node][term_index];
 }
 

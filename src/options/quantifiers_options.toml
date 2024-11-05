@@ -538,6 +538,23 @@ name   = "Quantifiers"
   help       = "try to be more fair in enumerative instantiation, automatically turn off relevant domain"
 
 [[option]]
+  name       = "enumFairPerturbation"
+  category   = "expert"
+  long       = "enum-fair-perturbation"
+  type       = "bool"
+  default    = "false"
+  help       = "do some random perturbation in enumeration of terms"
+
+[[option]]
+  name       = "enumFairSeed"
+  category   = "expert"
+  long       = "enum-fair-seed=N"
+  type       = "uint64_t"
+  default    = "77"
+  help       = "seed for enum-fair random generator"
+
+
+[[option]]
   name       = "enumAgeWeight"
   category   = "expert"
   long       = "enum-age-weight"

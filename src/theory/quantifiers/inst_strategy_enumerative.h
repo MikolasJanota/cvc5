@@ -13,6 +13,7 @@
  * Enumerative instantiation.
  */
 
+#include <random>
 #include "cvc5_private.h"
 
 #ifndef CVC5__INST_STRATEGY_ENUMERATIVE_H
@@ -86,6 +87,8 @@ class InstStrategyEnum : public QuantifiersModule
  private:
   /** Pointer to the relevant domain utility of quantifiers engine */
   RelevantDomain* d_rd;
+
+
   /** process quantified formula
    *
    * q is the quantified formula we are constructing instances for.
@@ -111,6 +114,8 @@ class InstStrategyEnum : public QuantifiersModule
    * during presolve.
    */
   int32_t d_enumInstLimit;
+
+  std::mt19937 d_enumFairRndGen;
 }; /* class InstStrategyEnum */
 
 }  // namespace quantifiers

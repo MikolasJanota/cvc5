@@ -35,7 +35,10 @@ InstStrategyEnum::InstStrategyEnum(Env& env,
                                    QuantifiersRegistry& qr,
                                    TermRegistry& tr,
                                    RelevantDomain* rd)
-    : QuantifiersModule(env, qs, qim, qr, tr), d_rd(rd), d_enumInstLimit(-1)
+    : QuantifiersModule(env, qs, qim, qr, tr),
+      d_rd(rd),
+      d_enumInstLimit(-1),
+      d_enumFairRndGen(options().quantifiers.enumFairSeed)
 {
 }
 void InstStrategyEnum::presolve()
@@ -182,7 +185,9 @@ bool InstStrategyEnum::process(Node quantifier, bool fullEffort, bool isRd)
   ttec.d_increaseSum = options().quantifiers.enumInstSum;
   ttec.d_fair = isFair;
   ttec.d_ageWeight = options().quantifiers.enumAgeWeight;
+  ttec.d_fairPerturbation = options().quantifiers.enumFairPerturbation;
   ttec.d_tr = &d_treg;
+  ttec.d_rndGen = &d_enumFairRndGen;
   // make the enumerator, which is either relevant domain or term database
   // based on the flag isRd.
   std::unique_ptr<TermTupleEnumeratorInterface> enumerator(
