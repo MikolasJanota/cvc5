@@ -35,6 +35,7 @@ QuantifiersModules::QuantifiersModules()
       d_synth_e(nullptr),
       d_fs(nullptr),
       d_ipool(nullptr),
+      d_iprobgen(nullptr),
       d_i_cbqi(nullptr),
       d_qsplit(nullptr),
       d_sygus_inst(nullptr)
@@ -116,6 +117,11 @@ void QuantifiersModules::initialize(Env& env,
   {
     d_ipool.reset(new InstStrategyPool(env, qs, qim, qr, tr));
     modules.push_back(d_ipool.get());
+  }
+  if (options.quantifiers.probgenInst)
+  {
+    d_iprobgen.reset(new InstStrategyProbGen(env, qs, qim, qr, tr));
+    modules.push_back(d_iprobgen.get());
   }
   if (options.quantifiers.sygusInst)
   {

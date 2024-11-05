@@ -891,6 +891,8 @@ libcvc5_add_sources(
   theory/quantifiers/inst_strategy_mbqi.h
   theory/quantifiers/inst_strategy_pool.cpp
   theory/quantifiers/inst_strategy_pool.h
+  theory/quantifiers/inst_strategy_probgen.cpp
+  theory/quantifiers/inst_strategy_probgen.h
   theory/quantifiers/inst_strategy_sub_conflict.cpp
   theory/quantifiers/inst_strategy_sub_conflict.h
   theory/quantifiers/instantiate.cpp
@@ -959,6 +961,8 @@ libcvc5_add_sources(
   theory/quantifiers/solution_filter.h
   theory/quantifiers/term_pools.cpp
   theory/quantifiers/term_pools.h
+  theory/quantifiers/term_probgen.cpp
+  theory/quantifiers/term_probgen.h
   theory/quantifiers/term_tuple_enumerator.cpp
   theory/quantifiers/term_tuple_enumerator.h
   theory/quantifiers/sygus/ce_guided_single_inv.cpp

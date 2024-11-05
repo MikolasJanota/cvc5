@@ -28,6 +28,7 @@
 #include "theory/quantifiers/inst_strategy_enumerative.h"
 #include "theory/quantifiers/inst_strategy_mbqi.h"
 #include "theory/quantifiers/inst_strategy_pool.h"
+#include "theory/quantifiers/inst_strategy_probgen.h"
 #include "theory/quantifiers/inst_strategy_sub_conflict.h"
 #include "theory/quantifiers/mbqi_fast_sygus.h"
 #include "theory/quantifiers/oracle_engine.h"
@@ -94,6 +95,8 @@ class QuantifiersModules
   std::unique_ptr<InstStrategyEnum> d_fs;
   /** pool-based instantiation */
   std::unique_ptr<InstStrategyPool> d_ipool;
+  /** probgen-based instantiation */
+  std::unique_ptr<InstStrategyProbGen> d_iprobgen;
   /** counterexample-based quantifier instantiation */
   std::unique_ptr<InstStrategyCegqi> d_i_cbqi;
   /** quantifiers splitting */

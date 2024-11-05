@@ -29,6 +29,7 @@
 #include "theory/quantifiers/quant_module.h"
 #include "theory/quantifiers/relevant_domain.h"
 #include "theory/quantifiers/term_pools.h"
+#include "theory/quantifiers/term_probgen.h"
 #include "theory/quantifiers/term_registry.h"
 #include "theory/quantifiers/term_util.h"
 #include "util/statistics_stats.h"
@@ -536,6 +537,45 @@ Node TermTupleEnumeratorBasic::getTerm(size_t variableIx, size_t term_index)
 }
 
 /**
+ * Enumerate ground terms via proben
+ */
+class TermTupleEnumeratorProbGen : public TermTupleEnumeratorBase
+{
+ public:
+  TermTupleEnumeratorProbGen(Node quantifier, const TermTupleEnumeratorEnv* env)
+      : TermTupleEnumeratorBase(quantifier, env)
+  {
+  }
+
+  virtual ~TermTupleEnumeratorProbGen() {}
+
+ protected:
+  /**  a list of terms for each id */
+  std::map<TypeNode, std::vector<Node> > d_ques;
+  /** gets the terms from the pool */
+  size_t prepareTerms(size_t variableIx) override
+  {
+    // prepare terms for type
+    Trace("inst-alg-pt") << "[pt] prepareTerms varIx " << variableIx
+                         << std::endl;
+    const TypeNode type_node = d_typeCache[variableIx];
+    auto& que = d_ques[type_node];
+    d_env->d_tr->getProbTermsForType(type_node, que);
+    Trace("inst-alg-pt") << "[pt] Instantiation Terms for child " << variableIx
+                         << ": " << que << std::endl;
+    return que.size();
+  }
+
+  Node getTerm(size_t variableIx, size_t term_index) override
+  {
+    const TypeNode type_node = d_typeCache[variableIx];
+    const auto& que = d_ques[type_node];
+    Assert(term_index < que.size());
+    return que[term_index];
+  }
+};
+
+/**
  * Enumerate ground terms as they come from a user-provided term pool
  */
 class TermTupleEnumeratorPool : public TermTupleEnumeratorBase
@@ -585,6 +625,13 @@ TermTupleEnumeratorInterface* mkTermTupleEnumeratorRd(
 {
   return static_cast<TermTupleEnumeratorInterface*>(
       new TermTupleEnumeratorRD(q, env, rd));
+}
+
+TermTupleEnumeratorInterface* mkTermTupleEnumeratorProbGen(
+    Node q, const TermTupleEnumeratorEnv* env)
+{
+  return static_cast<TermTupleEnumeratorInterface*>(
+      new TermTupleEnumeratorProbGen(q, env));
 }
 
 TermTupleEnumeratorInterface* mkTermTupleEnumeratorPool(

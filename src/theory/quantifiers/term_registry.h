@@ -31,6 +31,7 @@
 #include "theory/quantifiers/term_database.h"
 #include "theory/quantifiers/term_enumeration.h"
 #include "theory/quantifiers/term_pools.h"
+#include "theory/quantifiers/term_probgen.h"
 
 namespace cvc5::internal {
 namespace theory {
@@ -70,6 +71,8 @@ class TermRegistry : protected EnvObj
    * one exists, or otherwise a fresh variable.
    */
   Node getTermForType(TypeNode tn);
+  /** TODO */
+  void getProbTermsForType(TypeNode p, std::vector<Node>& terms);
   /** Get terms for pool p, adds them to the vector terms. */
   void getTermsForPool(Node p, std::vector<Node>& terms);
   /**
@@ -134,6 +137,8 @@ class TermRegistry : protected EnvObj
   std::unique_ptr<TermEnumeration> d_termEnum;
   /** term enumeration utility */
   std::unique_ptr<TermPools> d_termPools;
+  /** term enumeration utility */
+  std::unique_ptr<TermProbGen> d_termProbGen;
   /** term database */
   std::unique_ptr<TermDb> d_termDb;
   /** entailment check */

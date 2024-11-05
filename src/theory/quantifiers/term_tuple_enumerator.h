@@ -26,6 +26,7 @@ namespace quantifiers {
 
 class Instantiate;
 class TermPools;
+class TermProbGen;
 class QuantifiersState;
 class TermRegistry;
 class RelevantDomain;
@@ -97,6 +98,10 @@ TermTupleEnumeratorInterface* mkTermTupleEnumerator(
 /** Same as above, but draws terms from the relevant domain utility (rd). */
 TermTupleEnumeratorInterface* mkTermTupleEnumeratorRd(
     Node q, const TermTupleEnumeratorEnv* env, RelevantDomain* rd);
+
+/** Make term probgen enumerator */
+TermTupleEnumeratorInterface* mkTermTupleEnumeratorProbGen(
+    Node q, const TermTupleEnumeratorEnv* env);
 
 /** Make term pool enumerator */
 TermTupleEnumeratorInterface* mkTermTupleEnumeratorPool(

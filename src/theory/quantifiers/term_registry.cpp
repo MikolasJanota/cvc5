@@ -98,6 +98,11 @@ Node TermRegistry::getTermForType(TypeNode tn)
   return d_termDb->getOrMakeTypeGroundTerm(tn);
 }
 
+void TermRegistry::getProbTermsForType(TypeNode tn, std::vector<Node>& terms)
+{
+  d_termProbGen->getTermsForType(tn, terms);
+}
+
 void TermRegistry::getTermsForPool(Node p, std::vector<Node>& terms)
 {
   if (p.getKind() == Kind::SET_UNIVERSE)
@@ -126,6 +131,7 @@ void TermRegistry::processInstantiation(Node q,
                                         bool success)
 {
   d_termPools->processInstantiation(q, terms, success);
+  d_termProbGen->processInstantiation(q, terms, success);
 }
 void TermRegistry::processSkolemization(Node q,
                                         const std::vector<Node>& skolems)
