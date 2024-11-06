@@ -60,6 +60,11 @@ struct SymbolsInfo
   std::map<TypeNode, std::map<T, SymbolInfo>> d_maps;
   std::map<TypeNode, std::vector<std::pair<T, SymbolInfo>>> d_vecs;
   void init_vecs();
+  void clear()
+  {
+    d_maps.clear();
+    d_vecs.clear();
+  }
 };
 
 /**
@@ -101,6 +106,7 @@ class TermProbGen : public QuantifiersUtil
   void addSymbol(Node t);
   size_t fillQue(TypeNode tn, /*out*/ std::vector<Node>& que);
   Node makeNode(TypeNode tn);
+  Node makeNodeInternal(TypeNode tn);
   Node pick(const std::vector<std::pair<Node, SymbolInfo>>& vec);
 };
 

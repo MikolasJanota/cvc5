@@ -37,6 +37,7 @@ TermRegistry::TermRegistry(Env& env,
     : EnvObj(env),
       d_termEnum(new TermEnumeration),
       d_termPools(new TermPools(env, qs)),
+      d_termProbGen(new TermProbGen(env, qs)),
       d_termDb(logicInfo().isHigherOrder() ? new HoTermDb(env, qs, qr)
                                            : new TermDb(env, qs, qr)),
       d_echeck(new EntailmentCheck(env, qs, *d_termDb.get())),

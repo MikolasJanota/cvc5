@@ -27,6 +27,15 @@
   } while (0);
 
 namespace cvc5::internal {
+std::ostream& operator<<(std::ostream& o, const std::vector<Node>& vec)
+{
+  o << '[';
+  for (size_t i = 0; i < vec.size(); ++i)
+  {
+    o << (i > 0 ? "," : "") << vec[i];
+  }
+  return o << ']';
+}
 namespace theory {
 namespace quantifiers {
 
@@ -37,15 +46,25 @@ TermProbGen::TermProbGen(Env& env, QuantifiersState& qs)
 
 void TermProbGen::registerQuantifier(Node q) {}
 
+bool TermProbGen::reset(Theory::Effort e)
+{
+  d_ques.clear();
+  d_qinfo.clear();
+  d_symbols.clear();
+  return true;
+}
+
 std::string TermProbGen::identify() const { return "TermProbGen"; }
 
 void TermProbGen::getTermsForType(TypeNode tn, std::vector<Node>& terms)
 {
-  const auto it = d_ques.find(tn);
-  if (it != d_ques.end())
+  auto [it, isNew] = d_ques.insert({tn, std::vector<Node>()});
+  auto& que = it->second;
+  if (isNew)
   {
-    terms.insert(terms.end(), it->second.begin(), it->second.end());
+    fillQue(tn, que);
   }
+  terms.insert(terms.end(), que.begin(), que.end());
 }
 
 const SymbolInfo SymbolInfo::s_one(1);
@@ -69,6 +88,14 @@ Node TermProbGen::pick(const std::vector<std::pair<Node, SymbolInfo>>& vec)
 
 Node TermProbGen::makeNode(TypeNode range_tn)
 {
+  TRLN("Genereting node for " << range_tn);
+  const auto rv = makeNodeInternal(range_tn);
+  TRLN("Genereted node " << rv);
+  return rv;
+}
+
+Node TermProbGen::makeNodeInternal(TypeNode range_tn)
+{
   const auto& vecs = d_symbols.d_vecs;
   const auto& it = vecs.find(range_tn);
   if (it == vecs.end())
@@ -76,49 +103,49 @@ Node TermProbGen::makeNode(TypeNode range_tn)
     return Node::null();
   }
   const auto s = pick(it->second);
+  TRLN("picked symbol " << s);
   if (s.isNull())
   {
     return Node::null();
   }
   const auto tn = s.getType();
+  if (tn.getMetaKind() == kind::MetaKind::CONSTANT)
+  {
+    return s;
+  }
   Assert(tn.getRangeType() == range_tn);
-  std::vector<Node> args(tn.getNumChildren());
+  const bool parametrized = tn.getMetaKind() == kind::MetaKind::PARAMETERIZED;
+  std::vector<Node> args;
+  if (parametrized)
+  {
+    args.push_back(s);
+  }
   for (size_t i = 0; i < args.size(); ++i)
   {
-    args[i] = makeNode(tn[i]);
+    args.push_back(makeNode(tn[i]));
     if (args[i].isNull())
     {
       return Node::null();
     }
   }
-  switch (s.getMetaKind())
-  {
-    case kind::MetaKind::OPERATOR:
-      /**< operators that get "inlined" */
-      break;
-    case kind::MetaKind::PARAMETERIZED:
-      /**< parameterized ops (like APPLYs) that carry extra data */
-      break;
-    case kind::MetaKind::CONSTANT:
-      /**< constants */
-      break;
-    default: Unhandled() << "unexpected meta kind" << s.getMetaKind();
-  }
-
-  return Node::null();
+  auto* const nm = d_env.getNodeManager();
+  return nm->mkNode(parametrized ? Kind::APPLY_UF : s.getKind(), args);
 }
 
 size_t TermProbGen::fillQue(TypeNode tn, /*out*/ std::vector<Node>& que)
 {
+  TRLN("fillQue:" << tn);
   size_t count;
   for (count = 0; count < 20; count++)
   {
-    const Node t = makeNode(tn);
-    if (t.isNull())
+    if (const Node t = makeNode(tn); !t.isNull())
+    {
+      que.push_back(t);
+    }
+    else
     {
       break;
     }
-    que.push_back(t);
   };
   return count;
 }
@@ -127,18 +154,20 @@ void TermProbGen::addSymbol(Node n)
 {
   const Node& symbol = n.hasOperator() ? n.getOperator() : n;
   const TypeNode tn = symbol.getType();
-  const TypeNode rtn = tn.getRangeType();
-  auto& tm = d_symbols.d_maps[tn];
-  const auto [it, added] = tm.insert({symbol, SymbolInfo::s_one});
-  if (!added)
+  const TypeNode rtn = tn.isFunctionLike() ? tn.getRangeType() : tn;
+  auto& tm = d_symbols.d_maps[rtn];
+  const auto [it, isNew] = tm.insert({symbol, SymbolInfo::s_one});
+  if (!isNew)  // existing symbol, just increase
   {
     it->second.d_count++;
   }
-  TRLN("sym" << it->first << ":" << tn << ":" << it->second.d_count);
+  TRLN("addSymbol:" << n << " -> " << symbol << "->" << rtn << " -> "
+                    << it->first << ":" << it->second.d_count);
 }
 
 void TermProbGen::processTerm(Node t)
 {
+  TRLN("processTerm:" << t);
   std::set<Node> seen;
   TNode cur;
   std::vector<Node> stack = {t};
@@ -159,13 +188,15 @@ void TermProbGen::processInstantiation(Node q,
                                        bool success)
 {
   Assert(q.getKind() == Kind::FORALL);
-  d_symbols.d_vecs.clear();
-  if (success)
+  if (!success)
   {
-    for (const Node& t : terms)
-    {
-      processTerm(t);
-    }
+    return;
+  }
+  TRLN("processInstantiation:" << q << ":" << terms);
+  d_symbols.d_vecs.clear();
+  for (const Node& t : terms)
+  {
+    processTerm(t);
   }
   for (const auto& [tn, m] : d_symbols.d_maps)
   {
