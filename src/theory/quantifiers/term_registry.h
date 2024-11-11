@@ -109,6 +109,8 @@ class TermRegistry : protected EnvObj
   TermEnumeration* getTermEnumeration() const;
   /** get the term pools utility */
   TermPools* getTermPools() const;
+  /** get the term pools utility */
+  TermProbGen* getTermProbGen() const;
   /** get the virtual term substitution term cache utility */
   VtsTermCache* getVtsTermCache() const;
   /** get the bv inverter utility */
@@ -129,6 +131,8 @@ class TermRegistry : protected EnvObj
   ieval::InstEvaluator* getEvaluator(Node q, ieval::TermEvaluatorMode tev);
   /** get the model utility */
   FirstOrderModel* getModel() const;
+
+  void clearProbGenQues();
 
  private:
   /** Whether we are using the fmc model */

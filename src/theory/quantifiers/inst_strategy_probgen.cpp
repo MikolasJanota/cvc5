@@ -55,6 +55,7 @@ void InstStrategyProbGen::check(Theory::Effort e, QEffort quant_e)
   const size_t nquant = fm->getNumAssertedQuantifiers();
   bool inConflict = false;
   uint64_t addedLemmas = 0;
+  d_treg.clearProbGenQues();
   for (size_t i = 0; !inConflict && i < nquant; i++)
   {
     Node q = fm->getAssertedQuantifier(i, true);

@@ -27,6 +27,7 @@
   } while (0);
 
 namespace cvc5::internal {
+
 std::ostream& operator<<(std::ostream& o, const std::vector<Node>& vec)
 {
   o << '[';
@@ -39,12 +40,29 @@ std::ostream& operator<<(std::ostream& o, const std::vector<Node>& vec)
 namespace theory {
 namespace quantifiers {
 
+std::ostream& operator<<(std::ostream& o,
+                         const std::vector<std::pair<Node, SymbolInfo>>& vec)
+{
+  {
+    o << '[';
+    for (size_t i = 0; i < vec.size(); ++i)
+    {
+      o << (i > 0 ? "," : "") << vec[i].first;
+    }
+    return o << ']';
+  }
+}
+
 TermProbGen::TermProbGen(Env& env, QuantifiersState& qs)
     : QuantifiersUtil(env), d_qs(qs), d_rnde(977)
 {
 }
 
-void TermProbGen::registerQuantifier(Node q) {}
+void TermProbGen::registerQuantifier(Node q)
+{
+  TRLN("registerQuantifier " << q);
+  processFormula(q);
+}
 
 bool TermProbGen::reset(Theory::Effort e)
 {
@@ -55,6 +73,8 @@ bool TermProbGen::reset(Theory::Effort e)
 }
 
 std::string TermProbGen::identify() const { return "TermProbGen"; }
+
+void TermProbGen::clearQues() { d_ques.clear(); }
 
 void TermProbGen::getTermsForType(TypeNode tn, std::vector<Node>& terms)
 {
@@ -86,16 +106,17 @@ Node TermProbGen::pick(const std::vector<std::pair<Node, SymbolInfo>>& vec)
   return vec.begin()->first;
 }
 
-Node TermProbGen::makeNode(TypeNode range_tn)
+Node TermProbGen::makeNode(TypeNode range_tn, size_t depth)
 {
   TRLN("Genereting node for " << range_tn);
-  const auto rv = makeNodeInternal(range_tn);
+  const auto rv = makeNodeInternal(range_tn, depth);
   TRLN("Genereted node " << rv);
   return rv;
 }
 
-Node TermProbGen::makeNodeInternal(TypeNode range_tn)
+Node TermProbGen::makeNodeInternal(TypeNode range_tn, size_t depth)
 {
+  TRLN("makeNodeInternal " << range_tn << '@' << depth);
   const auto& vecs = d_symbols.d_vecs;
   const auto& it = vecs.find(range_tn);
   if (it == vecs.end())
@@ -103,17 +124,25 @@ Node TermProbGen::makeNodeInternal(TypeNode range_tn)
     return Node::null();
   }
   const auto s = pick(it->second);
-  TRLN("picked symbol " << s);
+  TRLN("picked symbol " << s << " out of " << it->second);
   if (s.isNull())
   {
     return Node::null();
   }
   const auto tn = s.getType();
-  if (tn.getMetaKind() == kind::MetaKind::CONSTANT)
+  TRLN("type " << tn << " " << s.getKind() << ":" << s.getMetaKind());
+  if (s.getMetaKind() == kind::MetaKind::CONSTANT
+      || s.getMetaKind() == kind::MetaKind::VARIABLE)
   {
     return s;
   }
-  Assert(tn.getRangeType() == range_tn);
+  Assert(s.getKind() != Kind::APPLY_UF);
+  if (s.getKind() != Kind::APPLY_UF)
+  {
+    return Node::null();
+  }
+
+  /* Assert(tn.getRangeType() == range_tn); */
   const bool parametrized = tn.getMetaKind() == kind::MetaKind::PARAMETERIZED;
   std::vector<Node> args;
   if (parametrized)
@@ -122,11 +151,12 @@ Node TermProbGen::makeNodeInternal(TypeNode range_tn)
   }
   for (size_t i = 0; i < args.size(); ++i)
   {
-    args.push_back(makeNode(tn[i]));
-    if (args[i].isNull())
+    const auto nn = makeNode(tn[i], depth + 1);
+    if (nn.isNull())
     {
       return Node::null();
     }
+    args.push_back(nn);
   }
   auto* const nm = d_env.getNodeManager();
   return nm->mkNode(parametrized ? Kind::APPLY_UF : s.getKind(), args);
@@ -161,13 +191,13 @@ void TermProbGen::addSymbol(Node n)
   {
     it->second.d_count++;
   }
-  TRLN("addSymbol:" << n << " -> " << symbol << "->" << rtn << " -> "
-                    << it->first << ":" << it->second.d_count);
+  TRLN("addSymbol:" << n << "->" << symbol << "->" << rtn << "->" << it->first
+                    << ":" << it->second.d_count);
 }
 
-void TermProbGen::processTerm(Node t)
+void TermProbGen::processFormula(Node t)
 {
-  TRLN("processTerm:" << t);
+  TRLN("processFormula:" << t);
   std::set<Node> seen;
   TNode cur;
   std::vector<Node> stack = {t};
@@ -177,7 +207,12 @@ void TermProbGen::processTerm(Node t)
     stack.pop_back();
     if (seen.insert(cur).second)
     {
-      addSymbol(cur);
+      if (cur.getKind() == Kind::APPLY_UF
+          || cur.getMetaKind() == kind::MetaKind::CONSTANT
+          || cur.getMetaKind() == kind::MetaKind::VARIABLE)
+      {
+        addSymbol(cur);
+      }
       stack.insert(stack.end(), cur.begin(), cur.end());
     }
   } while (!stack.empty());
@@ -196,7 +231,7 @@ void TermProbGen::processInstantiation(Node q,
   d_symbols.d_vecs.clear();
   for (const Node& t : terms)
   {
-    processTerm(t);
+    processFormula(t);
   }
   for (const auto& [tn, m] : d_symbols.d_maps)
   {

@@ -163,6 +163,10 @@ TermEnumeration* TermRegistry::getTermEnumeration() const
 }
 
 TermPools* TermRegistry::getTermPools() const { return d_termPools.get(); }
+TermProbGen* TermRegistry::getTermProbGen() const
+{
+  return d_termProbGen.get();
+}
 
 VtsTermCache* TermRegistry::getVtsTermCache() const { return d_vtsCache.get(); }
 
@@ -178,6 +182,8 @@ ieval::InstEvaluator* TermRegistry::getEvaluator(Node q,
 {
   return d_ievalMan->getEvaluator(q, tev);
 }
+
+void TermRegistry::clearProbGenQues() { d_termProbGen->clearQues(); }
 
 FirstOrderModel* TermRegistry::getModel() const { return d_qmodel; }
 

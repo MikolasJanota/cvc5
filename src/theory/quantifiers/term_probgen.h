@@ -89,6 +89,7 @@ class TermProbGen : public QuantifiersUtil
                             bool success);
 
   void getTermsForType(TypeNode p, std::vector<Node>& terms);
+  void clearQues();
 
  private:
   /** reference to the quantifiers state */
@@ -102,11 +103,11 @@ class TermProbGen : public QuantifiersUtil
 
   std::mt19937 d_rnde;
 
-  void processTerm(Node t);
+  void processFormula(Node t);
   void addSymbol(Node t);
   size_t fillQue(TypeNode tn, /*out*/ std::vector<Node>& que);
-  Node makeNode(TypeNode tn);
-  Node makeNodeInternal(TypeNode tn);
+  Node makeNode(TypeNode tn, size_t depth = 0);
+  Node makeNodeInternal(TypeNode tn, size_t depth);
   Node pick(const std::vector<std::pair<Node, SymbolInfo>>& vec);
 };
 
