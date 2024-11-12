@@ -25,6 +25,12 @@
   {                                                  \
     Trace("probgen") << "[pg] " << CMD << std::endl; \
   } while (0);
+#define TRLNO(OFFSET, CMD)                                 \
+  do                                                       \
+  {                                                        \
+    for (size_t i = OFFSET; i--;) Trace("probgen") << " "; \
+    Trace("probgen") << "[pg] " << CMD << std::endl;       \
+  } while (0);
 
 namespace cvc5::internal {
 
@@ -47,14 +53,27 @@ std::ostream& operator<<(std::ostream& o,
     o << '[';
     for (size_t i = 0; i < vec.size(); ++i)
     {
-      o << (i > 0 ? "," : "") << vec[i].first;
+      o << (i > 0 ? "," : "") << vec[i].first << ":" << vec[i].second.d_count;
     }
     return o << ']';
   }
 }
 
+static const char* mk2str(kind::MetaKind mk)
+{
+  switch (mk)
+  {
+    case kind::MetaKind::VARIABLE: return "VARIABLE";
+    case kind::MetaKind::OPERATOR: return "OPERATOR";
+    case kind::MetaKind::PARAMETERIZED: return "PARAMETERIZED";
+    case kind::MetaKind::CONSTANT: return "CONSTANT";
+    case kind::MetaKind::NULLARY_OPERATOR: return "NULLARY_OPERATOR";
+    default: Assert(false) << "unknown operator"; return "ERROR";
+  }
+}
+
 TermProbGen::TermProbGen(Env& env, QuantifiersState& qs)
-    : QuantifiersUtil(env), d_qs(qs), d_rnde(977)
+    : QuantifiersUtil(env), d_qs(qs), d_rnde(377)
 {
 }
 
@@ -95,28 +114,30 @@ Node TermProbGen::pick(const std::vector<std::pair<Node, SymbolInfo>>& vec)
   {
     return Node::null();
   }
-  std::uniform_real_distribution<> dist(0.0, 1.0);
-  for (const auto& rec : vec)
-  {
-    if (dist(d_rnde) < 0.4)
-    {
-      return rec.first;
-    }
-  }
-  return vec.begin()->first;
+  std::uniform_int_distribution<> dist(0.0, vec.size() - 1);
+  return vec[dist(d_rnde)].first;
+  /* std::uniform_real_distribution<> dist(0.0, 1.0); */
+  /* for (const auto& rec : vec) */
+  /* { */
+  /*   if (dist(d_rnde) < 0.4) */
+  /*   { */
+  /*     return rec.first; */
+  /*   } */
+  /* } */
+  /* return vec.begin()->first; */
 }
 
 Node TermProbGen::makeNode(TypeNode range_tn, size_t depth)
 {
-  TRLN("Genereting node for " << range_tn);
+  TRLNO(depth, "Genereting node for " << range_tn);
   const auto rv = makeNodeInternal(range_tn, depth);
-  TRLN("Genereted node " << rv);
+  TRLNO(depth, "Genereted node " << rv);
   return rv;
 }
 
 Node TermProbGen::makeNodeInternal(TypeNode range_tn, size_t depth)
 {
-  TRLN("makeNodeInternal " << range_tn << '@' << depth);
+  TRLNO(depth, "makeNodeInternal " << range_tn << '@' << depth);
   const auto& vecs = d_symbols.d_vecs;
   const auto& it = vecs.find(range_tn);
   if (it == vecs.end())
@@ -124,32 +145,33 @@ Node TermProbGen::makeNodeInternal(TypeNode range_tn, size_t depth)
     return Node::null();
   }
   const auto s = pick(it->second);
-  TRLN("picked symbol " << s << " out of " << it->second);
+  TRLNO(depth, "picked symbol " << s << " out of " << it->second);
   if (s.isNull())
   {
     return Node::null();
   }
   const auto tn = s.getType();
-  TRLN("type " << tn << " " << s.getKind() << ":" << s.getMetaKind());
-  if (s.getMetaKind() == kind::MetaKind::CONSTANT
-      || s.getMetaKind() == kind::MetaKind::VARIABLE)
+  const auto children = tn.getNumChildren();
+  TRLNO(depth,
+        "type " << tn << "(" << children << ") " << s.getKind() << ":"
+                << mk2str(s.getMetaKind()));
+  if (s.getMetaKind() == kind::MetaKind::CONSTANT)
   {
     return s;
   }
-  Assert(s.getKind() != Kind::APPLY_UF);
-  if (s.getKind() != Kind::APPLY_UF)
+
+  if (s.getMetaKind() == kind::MetaKind::VARIABLE && children == 0)
   {
-    return Node::null();
+    return s;
   }
 
-  /* Assert(tn.getRangeType() == range_tn); */
-  const bool parametrized = tn.getMetaKind() == kind::MetaKind::PARAMETERIZED;
+  Assert(s.getKind() == Kind::VARIABLE);
+  Assert(children > 1);
+  const auto arity = children - 1;
+
   std::vector<Node> args;
-  if (parametrized)
-  {
-    args.push_back(s);
-  }
-  for (size_t i = 0; i < args.size(); ++i)
+  args.push_back(s);
+  for (size_t i = 0; i < arity; ++i)
   {
     const auto nn = makeNode(tn[i], depth + 1);
     if (nn.isNull())
@@ -159,7 +181,7 @@ Node TermProbGen::makeNodeInternal(TypeNode range_tn, size_t depth)
     args.push_back(nn);
   }
   auto* const nm = d_env.getNodeManager();
-  return nm->mkNode(parametrized ? Kind::APPLY_UF : s.getKind(), args);
+  return nm->mkNode(Kind::APPLY_UF, args);
 }
 
 size_t TermProbGen::fillQue(TypeNode tn, /*out*/ std::vector<Node>& que)
@@ -191,6 +213,9 @@ void TermProbGen::addSymbol(Node n)
   {
     it->second.d_count++;
   }
+  const auto arity = tn.getNumChildren();
+  TRLN("type " << tn << "(" << arity << ") " << symbol.getKind() << ":"
+                << mk2str(symbol.getMetaKind()));
   TRLN("addSymbol:" << n << "->" << symbol << "->" << rtn << "->" << it->first
                     << ":" << it->second.d_count);
 }
@@ -209,7 +234,7 @@ void TermProbGen::processFormula(Node t)
     {
       if (cur.getKind() == Kind::APPLY_UF
           || cur.getMetaKind() == kind::MetaKind::CONSTANT
-          || cur.getMetaKind() == kind::MetaKind::VARIABLE)
+          || cur.getKind() == Kind::VARIABLE)
       {
         addSymbol(cur);
       }

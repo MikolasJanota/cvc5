@@ -20,7 +20,6 @@
 #ifndef CVC5__THEORY__QUANTIFIERS__TERM_PROBGEN_H
 #define CVC5__THEORY__QUANTIFIERS__TERM_PROBGEN_H
 
-#include <unordered_set>
 #include <vector>
 
 #include "expr/node.h"

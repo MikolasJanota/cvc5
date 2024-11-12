@@ -46,7 +46,9 @@ bool InstStrategyProbGen::needsCheck(Theory::Effort e)
   return d_qstate.getInstWhenNeedsCheck(e);
 }
 
-void InstStrategyProbGen::reset_round(Theory::Effort e) {}
+void InstStrategyProbGen::reset_round(Theory::Effort e)
+{
+}
 
 void InstStrategyProbGen::check(Theory::Effort e, QEffort quant_e)
 {
@@ -89,7 +91,8 @@ bool InstStrategyProbGen::process(Node q, uint64_t& addedLemmas)
     // try instantiation
     failMask.clear();
     if (ie->addInstantiationExpFail(
-            q, terms, failMask, InferenceId::QUANTIFIERS_INST_POOL))  // TODO
+            /* q, terms, failMask, InferenceId::QUANTIFIERS_INST_POOL))  // TODO */
+            q, terms, failMask, InferenceId::QUANTIFIERS_INST_PROBGEN))  // TODO
     {
       Trace("inst-alg-pt") << "Success with " << terms << std::endl;
       addedLemmas++;
